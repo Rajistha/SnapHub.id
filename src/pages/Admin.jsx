@@ -30,6 +30,15 @@ const Admin = () => {
     localStorage.setItem('adminTheme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    const robotsMeta = document.querySelector('meta[name="robots"]');
+    const previousContent = robotsMeta?.getAttribute('content');
+    robotsMeta?.setAttribute('content', 'noindex, nofollow');
+    return () => {
+      if (previousContent) robotsMeta?.setAttribute('content', previousContent);
+    };
+  }, []);
+
   // Derive activeTab from URL
   const pathParts = location.pathname.split('/').filter(Boolean);
   let activeTab = 'dashboard';

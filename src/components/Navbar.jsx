@@ -36,6 +36,7 @@ const Navbar = () => {
 
   return (
     <>
+      <header>
       <motion.nav
         initial={{ y: -80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -112,6 +113,7 @@ const Navbar = () => {
           </div>
         </div>
       </motion.nav>
+      </header>
 
       {/* ── Mobile Drawer ───────────────────────────────────── */}
       <AnimatePresence>

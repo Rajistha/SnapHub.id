@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 import { FiTrendingUp, FiTarget, FiArrowUpRight, FiActivity, FiPieChart, FiCalendar, FiStar, FiPercent, FiList, FiDollarSign } from 'react-icons/fi';
 import { format, getDaysInMonth, getDate } from 'date-fns';
 import {
@@ -60,13 +61,19 @@ const AdminDashboard = () => {
         if (t['custom_targets']) {
           try {
             customTargets = JSON.parse(t['custom_targets']);
-          } catch (e) { }
+          } catch (e) {
+            console.error('Gagal memparsing custom_targets:', e);
+            toast.error('Data target kustom rusak, ditampilkan kosong.');
+          }
         }
-        
+
         if (t['operational_expenses']) {
           try {
             operationalExpenses = JSON.parse(t['operational_expenses']);
-          } catch(e) {}
+          } catch (e) {
+            console.error('Gagal memparsing operational_expenses:', e);
+            toast.error('Data pengeluaran operasional rusak, ditampilkan kosong.');
+          }
         }
       }
       setTargets({ allTime: targetAllTime, monthly: targetMonthly, custom: customTargets });

@@ -89,6 +89,8 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
           try {
             setCustomTargets(JSON.parse(targets['custom_targets']));
           } catch (e) {
+            console.error('Gagal memparsing custom_targets:', e);
+            toast.error('Data target kustom rusak, ditampilkan kosong.');
             setCustomTargets([]);
           }
         }
@@ -97,6 +99,8 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
           try {
             setOperationalExpenses(JSON.parse(targets['operational_expenses']));
           } catch (e) {
+            console.error('Gagal memparsing operational_expenses:', e);
+            toast.error('Data pengeluaran operasional rusak, ditampilkan kosong.');
             setOperationalExpenses([]);
           }
         }

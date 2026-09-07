@@ -172,6 +172,7 @@ const BotAssistant = () => {
             replyText = 'Untuk mengecek ketersediaan jadwal, Anda bisa menggulir (scroll) ke bagian Schedule di website kami atau langsung hubungi admin via WhatsApp ya! 🗓️✨';
           }
         } catch (e) {
+          console.error('Gagal mengecek jadwal:', e);
           replyText = 'Untuk mengecek ketersediaan jadwal, Anda bisa menggulir (scroll) ke bagian Schedule di website kami atau langsung hubungi admin via WhatsApp ya! 🗓️✨';
         }
       } else {
