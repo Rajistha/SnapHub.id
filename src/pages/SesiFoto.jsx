@@ -316,17 +316,9 @@ const SesiFoto = () => {
 
       <div className="max-w-5xl mx-auto px-5 py-6 md:px-8 md:py-8">
         <div className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/admin"
-              className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors"
-            >
-              <FiArrowLeft size={18} />
-            </Link>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--admin-text-main)] font-heading">Catat Sesi Foto</h2>
-              <p className="text-[var(--admin-text-muted)] text-xs">Catatan internal — tidak tampil di website</p>
-            </div>
+          <div>
+            <h2 className="text-lg font-bold text-[var(--admin-text-main)] font-heading">Catat Sesi Foto</h2>
+            <p className="text-[var(--admin-text-muted)] text-xs">Catatan internal — tidak tampil di website</p>
           </div>
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
