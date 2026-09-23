@@ -526,7 +526,7 @@ const SesiFoto = () => {
                         {[...selectedEvent.sessions].reverse().map((s, idx) => (
                           <SwipeableSessionRow
                             key={s.id}
-                            onDelete={() => handleDeleteSession(s.id)}
+                            onDelete={() => setDeleteModal({ isOpen: true, type: 'session', eventId: selectedEvent.id, sessionId: s.id })}
                           >
                             <div className="flex items-center justify-between gap-3 py-2.5 group">
                               <div className="flex items-center gap-3 min-w-0">
