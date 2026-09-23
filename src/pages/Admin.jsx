@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
-import { FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, FiBriefcase } from 'react-icons/fi';
+import { FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, FiBriefcase, FiCamera } from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 // Admin Sub-components
@@ -299,6 +299,14 @@ const Admin = () => {
               )}
             </div>
           ))}
+
+          <Link
+            to="/sesi-foto"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent"
+          >
+            <FiCamera size={20} />
+            Catat Sesi Foto
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-[var(--admin-border-subtle)] space-y-2">
