@@ -460,6 +460,14 @@ const SesiFoto = () => {
                         {selectedEvent.notes ? selectedEvent.notes : 'Belum ada catatan.'}
                       </p>
                     )}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="text-xs px-2.5 py-1 rounded-md bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)]">
+                        Pakai voucher: <span className="font-semibold">{(selectedEvent.sessions || []).filter((s) => !s.no_voucher).length}</span>
+                      </span>
+                      <span className="text-xs px-2.5 py-1 rounded-md bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)]">
+                        Tanpa voucher: <span className="font-semibold">{(selectedEvent.sessions || []).filter((s) => s.no_voucher).length}</span>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Add Session */}
