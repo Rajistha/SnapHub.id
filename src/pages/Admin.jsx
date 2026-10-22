@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
-import { FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, FiBriefcase, FiCamera } from 'react-icons/fi';
+import { FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, FiBriefcase, FiCamera, FiTag } from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 // Admin Sub-components
@@ -11,6 +11,7 @@ import AdminFinance from '../components/AdminFinance';
 import AdminGallery from '../components/AdminGallery';
 import AdminReviews from '../components/AdminReviews';
 import AdminLogos from '../components/AdminLogos';
+import AdminPricelist from '../components/AdminPricelist';
 
 const Admin = () => {
   const [session, setSession] = useState(null);
@@ -47,6 +48,7 @@ const Admin = () => {
   else if (pathParts[1] === 'gallery') activeTab = 'gallery';
   else if (pathParts[1] === 'reviews') activeTab = 'reviews';
   else if (pathParts[1] === 'logos') activeTab = 'logos';
+  else if (pathParts[1] === 'pricelist') activeTab = 'pricelist';
   else if (pathParts[1] === 'finance') {
     if (pathParts[2] === 'recap') activeTab = 'finance_recap';
     else if (pathParts[2] === 'target') activeTab = 'finance_target';
@@ -176,6 +178,7 @@ const Admin = () => {
     { id: 'schedule', label: 'Jadwal', icon: <FiCalendar size={20} /> },
     { id: 'reviews', label: 'Reviews', icon: <FiStar size={20} /> },
     { id: 'logos', label: 'Client Logos', icon: <FiBriefcase size={20} /> },
+    { id: 'pricelist', label: 'Pricelist', icon: <FiTag size={20} /> },
     {
       id: 'finance',
       label: 'Event & Keuangan',
@@ -243,8 +246,8 @@ const Admin = () => {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 right-0 z-50 w-64 bg-[var(--admin-sidebar-bg)] border-l border-[var(--admin-border)] transform ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0 transition-all duration-300 ease-in-out flex flex-col shadow-2xl lg:shadow-none`}>
-        <div className="p-6 border-b border-[var(--admin-border-subtle)] flex justify-between items-center">
+      <aside className={`fixed lg:static inset-y-0 right-0 z-50 w-64 bg-[var(--admin-sidebar-bg)] border-l border-[var(--admin-border)] transform ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0 lg:sticky lg:top-0 h-screen transition-all duration-300 ease-in-out flex flex-col shadow-2xl lg:shadow-none`}>
+        <div className="p-6 shrink-0 border-b border-[var(--admin-border-subtle)] flex justify-between items-center">
           <Link to="/" className="inline-block">
             <img src="/icons.svg" alt="SnapHub Logo" className="h-8" />
           </Link>
@@ -253,7 +256,7 @@ const Admin = () => {
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
           {TABS.map(tab => (
             <div key={tab.id}>
               <button
@@ -301,7 +304,7 @@ const Admin = () => {
           ))}
 
           <Link
-            to="/sesi-foto"
+            to="/sesi"
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent"
           >
             <FiCamera size={20} />
@@ -309,7 +312,7 @@ const Admin = () => {
           </Link>
         </nav>
 
-        <div className="p-4 border-t border-[var(--admin-border-subtle)] space-y-2">
+        <div className="p-4 shrink-0 border-t border-[var(--admin-border-subtle)] space-y-2">
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-[var(--admin-hover-bg)] cursor-pointer">
             {/* Toggle Switch */}
             <div className={`relative w-11 h-6 rounded-full transition-colors flex items-center px-1 ${theme === 'dark' ? 'bg-[#3A2427]' : 'bg-[#E5E7EB]'}`}>
@@ -359,6 +362,7 @@ const Admin = () => {
             {activeTab === 'gallery' && <AdminGallery />}
             {activeTab === 'reviews' && <AdminReviews />}
             {activeTab === 'logos' && <AdminLogos />}
+            {activeTab === 'pricelist' && <AdminPricelist />}
             {activeTab === 'finance_events' && <AdminFinance activeSubTab="events" />}
             {activeTab === 'finance_operational' && <AdminFinance activeSubTab="operational" />}
             {activeTab === 'finance_recap' && <AdminFinance activeSubTab="recap" />}

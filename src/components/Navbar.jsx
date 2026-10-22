@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-scroll';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiMenu, FiX } from 'react-icons/fi';
+import { FiMenu, FiX, FiChevronDown } from 'react-icons/fi';
 
 const navLinks = [
   { label: 'Home', to: 'home' },
+  { label: 'Pricelist', to: 'pricelist' },
+  { label: 'Schedule', to: 'availability' },
   { label: 'About', to: 'about' },
   { label: 'Features', to: 'features' },
   { label: 'Gallery', to: 'gallery' },
-  { label: 'Pricelist', to: 'pricelist' },
-  { label: 'Schedule', to: 'availability' },
   { label: 'Location', to: 'maps' },
   { label: 'Contact', to: 'contact' },
 ];
+
+const dropdownLinks = ['about', 'features', 'gallery', 'maps'];
+const linkByKey = Object.fromEntries(navLinks.map((l) => [l.to, l]));
 
 const WA_URL = 'https://wa.me/6285190643459?text=Halo%20SnapHub%2C%20saya%20ingin%20booking%20photobooth!';
 
@@ -20,6 +23,16 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('home');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const onClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -36,90 +49,158 @@ const Navbar = () => {
 
   return (
     <>
-      <header>
-      <motion.nav
-        initial={{ y: -80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className={`fixed z-50 transition-all duration-500 max-w-6xl w-[92%] left-1/2 -translate-x-1/2 rounded-full border shadow-2xl ${scrolled
-          ? 'top-4 bg-black/30 backdrop-blur-[24px] border-white/[0.15] shadow-black/80'
-          : 'top-6 bg-white/[0.05] backdrop-blur-xl border-white/20 shadow-black/40'
+      <header
+        className={`fixed top-0 inset-x-0 z-50 transition-colors duration-300 border-b ${scrolled
+          ? 'bg-[#050505] border-white/10'
+          : 'bg-transparent border-transparent'
           }`}
       >
-        <div className="px-5 md:px-8">
-          <div className="flex items-center justify-between h-16 md:h-[72px]">
+        <nav className="max-w-6xl mx-auto px-5 md:px-8 flex items-center justify-between h-16 md:h-[72px]">
+          {/* Logo */}
+          <Link to="home" smooth={true} duration={650} className="flex items-center cursor-pointer select-none">
+            <img src="/icons.svg" alt="SnapHub Logo" className="h-9 md:h-10 w-auto" />
+          </Link>
 
-            {/* ── Logo ───────────────────────────────────── */}
-            <motion.div
-              whileHover={{ scale: 1.04 }}
-              className="flex items-center gap-2.5 cursor-pointer select-none"
-            >
-              <img
-                src="/icons.svg"
-                alt="SnapHub Logo"
-                className="h-10 w-auto flex-shrink-0"
-                style={{ md: { height: '3rem' }, height: '2.5rem' }}
-              />
-            </motion.div>
+          {/* Desktop links */}
+          <ul className="hidden lg:flex items-center gap-8">
+            {[linkByKey.home].map((link) => (
+              <li key={link.to}>
+                <Link
+                  to={link.to}
+                  spy={true}
+                  smooth={true}
+                  offset={-72}
+                  duration={650}
+                  onSetActive={() => setActiveSection(link.to)}
+                  className={`cursor-pointer text-sm py-1 border-b-2 transition-colors ${activeSection === link.to
+                    ? 'text-white border-[#D90429]'
+                    : 'text-gray-400 border-transparent hover:text-white'
+                    }`}
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
 
-            {/* ── Desktop Nav ─────────────────────────────── */}
-            <ul className="hidden lg:flex items-center gap-7 xl:gap-9">
-              {navLinks.map((link) => (
+            {['pricelist', 'availability'].map((key) => {
+              const link = linkByKey[key];
+              return (
                 <li key={link.to}>
                   <Link
                     to={link.to}
                     spy={true}
                     smooth={true}
-                    offset={0}
+                    offset={-72}
                     duration={650}
                     onSetActive={() => setActiveSection(link.to)}
-                    className={`nav-link ${activeSection === link.to ? 'text-white' : ''}`}
+                    className={`cursor-pointer text-sm py-1 border-b-2 transition-colors ${activeSection === link.to
+                    ? 'text-white border-[#D90429]'
+                    : 'text-gray-400 border-transparent hover:text-white'
+                    }`}
                   >
                     {link.label}
                   </Link>
                 </li>
-              ))}
-            </ul>
+              );
+            })}
 
-            {/* ── Book Now ────────────────────────────────── */}
-            <div className="hidden lg:flex items-center gap-3">
-              <motion.a
-                href={WA_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.04, boxShadow: '0 0 28px rgba(217,4,41,0.5)' }}
-                whileTap={{ scale: 0.96 }}
-                className="btn-primary text-sm px-5 py-2.5"
-              >
-                Book Now
-              </motion.a>
-            </div>
-
-            {/* ── Mobile Toggle ───────────────────────────── */}
-            <motion.button
-              className="lg:hidden flex items-center justify-center w-10 h-10 text-white rounded-lg glass border border-white/10"
-              onClick={() => setMenuOpen(!menuOpen)}
-              whileTap={{ scale: 0.9 }}
-              aria-label="Toggle menu"
-              aria-expanded={menuOpen}
+            {/* Dropdown */}
+            <li
+              ref={dropdownRef}
+              className="relative"
+              onMouseEnter={() => setDropdownOpen(true)}
+              onMouseLeave={() => setDropdownOpen(false)}
             >
-              <AnimatePresence mode="wait" initial={false}>
-                {menuOpen
-                  ? <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}><FiX size={20} /></motion.span>
-                  : <motion.span key="m" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.2 }}><FiMenu size={20} /></motion.span>
-                }
-              </AnimatePresence>
-            </motion.button>
-          </div>
-        </div>
-      </motion.nav>
+              <button
+                type="button"
+                onClick={() => setDropdownOpen((o) => !o)}
+                aria-expanded={dropdownOpen}
+                className={`flex items-center gap-1 text-sm py-1 border-b-2 transition-colors ${dropdownLinks.includes(activeSection)
+                  ? 'text-white border-[#D90429]'
+                  : 'text-gray-400 border-transparent hover:text-white'
+                  }`}
+              >
+                Jelajahi
+                <FiChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {/* pt-3 bridges the gap so hover isn't lost; links stay mounted so scroll-spy keeps working */}
+              <div className={`absolute left-0 top-full pt-3 ${dropdownOpen ? 'block' : 'hidden'}`}>
+                <ul className="w-44 py-1.5 bg-[#0a0a0a] border border-white/10 rounded-md shadow-lg shadow-black/50">
+                  {dropdownLinks.map((key) => {
+                    const link = linkByKey[key];
+                    return (
+                      <li key={key}>
+                        <Link
+                          to={link.to}
+                          spy={true}
+                          smooth={true}
+                          offset={-72}
+                          duration={650}
+                          onSetActive={() => setActiveSection(link.to)}
+                          onClick={() => setDropdownOpen(false)}
+                          className={`block cursor-pointer px-4 py-2 text-sm transition-colors ${activeSection === link.to
+                            ? 'text-white bg-white/5'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                          {link.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </li>
+
+            {['contact'].map((key) => {
+              const link = linkByKey[key];
+              return (
+                <li key={link.to}>
+                  <Link
+                    to={link.to}
+                    spy={true}
+                    smooth={true}
+                    offset={-72}
+                    duration={650}
+                    onSetActive={() => setActiveSection(link.to)}
+                    className={`cursor-pointer text-sm py-1 border-b-2 transition-colors ${activeSection === link.to
+                    ? 'text-white border-[#D90429]'
+                    : 'text-gray-400 border-transparent hover:text-white'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Book Now */}
+          <a
+            href={WA_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:inline-block text-sm font-semibold text-white bg-[#D90429] hover:bg-[#A50320] transition-colors px-5 py-2.5 rounded-md"
+          >
+            Book Now
+          </a>
+
+          {/* Mobile toggle */}
+          <button
+            className="lg:hidden flex items-center justify-center w-10 h-10 text-white"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
+          </button>
+        </nav>
       </header>
 
-      {/* ── Mobile Drawer ───────────────────────────────────── */}
+      {/* Mobile drawer */}
       <AnimatePresence>
         {menuOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               key="backdrop"
               initial={{ opacity: 0 }}
@@ -128,66 +209,51 @@ const Navbar = () => {
               className="fixed inset-0 z-40 bg-black/70"
               onClick={() => setMenuOpen(false)}
             />
-            {/* Panel */}
             <motion.div
               key="drawer"
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="fixed top-0 right-0 z-50 h-full w-72 glass-dark flex flex-col"
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="fixed top-0 right-0 z-50 h-full w-72 bg-[#0a0a0a] border-l border-white/10 flex flex-col"
             >
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between border-b border-white/[0.07]" style={{ padding: '0.8rem' }}>
-                <img
-                  src="/icons.svg"
-                  alt="SnapHub Logo"
-                  className="h-8 w-auto"
-                />
+              <div className="flex items-center justify-between h-16 px-5 border-b border-white/10">
+                <img src="/icons.svg" alt="SnapHub Logo" className="h-8 w-auto" />
                 <button
                   onClick={() => setMenuOpen(false)}
                   className="text-gray-400 hover:text-white transition-colors"
                   aria-label="Close menu"
                 >
-                  <FiX size={30} />
+                  <FiX size={24} />
                 </button>
               </div>
 
-              {/* Links */}
-              <nav className="flex overflow-y-auto flex flex-col">
-                {navLinks.map((link, i) => (
-                  <motion.div
+              <nav className="flex-1 overflow-y-auto flex flex-col">
+                {navLinks.map((link) => (
+                  <Link
                     key={link.to}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.04, duration: 0.3 }}
+                    to={link.to}
+                    smooth={true}
+                    offset={-72}
+                    duration={650}
+                    onClick={() => setMenuOpen(false)}
+                    className={`px-5 py-3.5 border-b border-white/5 text-sm cursor-pointer transition-colors ${activeSection === link.to
+                      ? 'text-white border-l-2 border-l-[#D90429]'
+                      : 'text-gray-400 hover:text-white'
+                      }`}
                   >
-                    <Link
-                      to={link.to}
-                      spy={true}
-                      smooth={true}
-                      offset={0}
-                      duration={650}
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center justify-between border-b border-white/[0.1] text-gray-300 hover:text-white hover:bg-white/[0.05] transition-all duration-200 text-sm font-medium cursor-pointer group"
-                      style={{ paddingTop: '0.8rem', paddingBottom: '0.8rem', paddingLeft: '0.8rem', paddingRight: '0.8rem' }}
-
-                    >
-                      {link.label}
-                      <span className="text-[#D90429] opacity-0 group-hover:opacity-100 transition-opacity">›</span>
-                    </Link>
-                  </motion.div>
+                    {link.label}
+                  </Link>
                 ))}
               </nav>
 
-              {/* CTA */}
-              <div className="border-t border-white/[0.07]" style={{ padding: '1.5rem' }}>
+              <div className="p-5 border-t border-white/10">
                 <a
                   href={WA_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setMenuOpen(false)}
-                  className="btn-primary w-full text-center justify-center"
+                  className="block w-full text-center text-sm font-semibold text-white bg-[#D90429] hover:bg-[#A50320] transition-colors px-5 py-3 rounded-md"
                 >
                   Book Now via WhatsApp
                 </a>

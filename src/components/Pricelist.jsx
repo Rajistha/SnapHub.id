@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import { FiDownload, FiCheck, FiClock, FiPrinter, FiCamera, FiInfo } from 'react-icons/fi';
+import { supabase } from '../lib/supabase';
+import { DEFAULT_PACKAGES, DEFAULT_TNC, mergePackages, formatRupiah, startFrom } from '../lib/pricelistDefaults';
 
 
 const WA_URL = 'https://wa.me/6285190643459?text=Halo%20SnapHub%2C%20saya%20ingin%20booking%20photobooth!';
@@ -11,105 +13,12 @@ const WaIcon = () => (
   </svg>
 );
 
-const PACKAGES = [
-  {
-    id: 'softfile',
-    label: 'Soft File Only',
-    icon: <FiCamera size={18} />,
-    badge: null,
-    startFrom: 'Rp 999.000',
-    tagline: 'Kenangan digital tanpa batas',
-    features: [
-      'Free transport Kota Malang',
-      'Camera + Lighting + Monitor 24"',
-      '2 Standby Crew',
-      'Unlimited Shots (can retake)',
-      'Soft File via QR + GIF Booth',
-      'Aksesoris / Funprops',
-      '2 Free Custom Design (max 2 revisi)',
-    ],
-    prices: [
-      { label: '3 Jam', price: 'Rp 999.000' },
-      { label: '4 Jam', price: 'Rp 1.199.000' },
-      { label: '5 Jam', price: 'Rp 1.399.000' },
-      { label: '6 Jam', price: 'Rp 1.595.000' },
-      { label: '7 Jam', price: 'Rp 1.850.000' },
-      { label: '8 Jam', price: 'Rp 2.050.000' },
-      { label: '9 Jam', price: 'Rp 2.250.000' },
-      { label: '10 Jam', price: 'Rp 2.499.000' },
-    ],
-  },
-  {
-    id: 'limited',
-    label: 'Limited Print',
-    icon: <FiPrinter size={18} />,
-    badge: null,
-    startFrom: 'Rp 1.800.000',
-    tagline: 'Cetak sesuai kebutuhan acara',
-    features: [
-      'Free transport Kota Malang',
-      'Camera + Lighting + Monitor 24"',
-      '2 Standby Crew',
-      'Unlimited Shots (can retake)',
-      'Soft File via QR + GIF Booth',
-      'Aksesoris / Funprops',
-      '2 Free Custom Design (max 2 revisi)',
-      'Highspeed Print',
-      'Kertas Foto 2R/4R (high quality)',
-    ],
-    prices: [
-      { label: '100 Prints', sub: 'maks. 4 jam', price: 'Rp 1.800.000' },
-      { label: '200 Prints', sub: 'maks. 5 jam', price: 'Rp 2.100.000' },
-      { label: '300 Prints', sub: 'maks. 6 jam', price: 'Rp 2.500.000' },
-      { label: '400 Prints', sub: 'maks. 7 jam', price: 'Rp 2.900.000' },
-      { label: '500 Prints', sub: 'maks. 8 jam', price: 'Rp 3.400.000' },
-      { label: '600 Prints', sub: 'maks. 8 jam', price: 'Rp 4.000.000' },
-      { label: '700 Prints', sub: 'maks. 8 jam', price: 'Rp 4.600.000' },
-      { label: '800 Prints', sub: 'maks. 9 jam', price: 'Rp 5.400.000' },
-      { label: '900 Prints', sub: 'maks. 10 jam', price: 'Rp 6.200.000' },
-    ],
-  },
-  {
-    id: 'unlimited',
-    label: 'Unlimited Print',
-    icon: <FiPrinter size={18} />,
-    badge: '🔥 Paling Populer',
-    startFrom: 'Rp 2.400.000',
-    tagline: 'Cetak sepuasnya tanpa batas',
-    features: [
-      'Free transport Kota Malang',
-      'Camera + Lighting + Monitor 24"',
-      '2 Standby Crew',
-      'Unlimited Shots (can retake)',
-      'Soft File via QR + GIF Booth',
-      'Aksesoris / Funprops',
-      '2 Free Custom Design (max 2 revisi)',
-      'Highspeed Print',
-      'Kertas Foto 2R/4R (high quality)',
-    ],
-    prices: [
-      { label: '2 Jam', price: 'Rp 2.400.000' },
-      { label: '3 Jam', price: 'Rp 2.900.000' },
-      { label: '4 Jam', price: 'Rp 3.400.000' },
-      { label: '5 Jam', price: 'Rp 3.900.000' },
-      { label: '6 Jam', price: 'Rp 4.400.000' },
-      { label: '7 Jam', price: 'Rp 4.850.000' },
-      { label: '8 Jam', price: 'Rp 5.350.000' },
-      { label: '9 Jam', price: 'Rp 5.850.000' },
-      { label: '10 Jam', price: 'Rp 6.350.000' },
-    ],
-  },
-];
+const PACKAGE_ICONS = {
+  softfile: <FiCamera size={18} />,
+  limited: <FiPrinter size={18} />,
+  unlimited: <FiPrinter size={18} />,
+};
 
-const TNC = [
-  { num: '01', text: 'Penyewa WAJIB DP 30% untuk booking tanggal acara.' },
-  { num: '02', text: 'Pelunasan H-1 sebelum tanggal acara berlangsung.' },
-  { num: '03', text: 'Konfirmasi perpindahan tanggal acara maksimal H-7 sebelum acara.' },
-  { num: '04', text: 'Jika cancel booking, DP dinyatakan Hangus.' },
-  { num: '05', text: 'Pembayaran via QRIS atau Bank Transfer — Bank Jago a/n Made Puja Rajistha AW · No Rek: 102302896677.' },
-  { num: '06', text: 'Penyewa wajib mengisi FORMAT ORDER dan mendapat invoice dari tim SnapHub.' },
-  { num: '07', text: 'Tim SnapHub standby di lokasi ±1 jam sebelum jam order.' },
-];
 
 /* ─── Sub-component: single price row ─────────────────────── */
 const PriceRow = ({ item, index }) => (
@@ -129,18 +38,37 @@ const PriceRow = ({ item, index }) => (
       </div>
     </div>
     <span className="text-[#D90429] font-bold text-[13px] md:text-sm tabular-nums">
-      {item.price}
+      {formatRupiah(item.price)}
     </span>
   </motion.div>
 );
 
 /* ─── Main Component ───────────────────────────────────────── */
 const Pricelist = () => {
-  const [activeTab, setActiveTab] = useState(PACKAGES[0].id);
+  const [packages, setPackages] = useState(DEFAULT_PACKAGES);
+  const [tnc, setTnc] = useState(DEFAULT_TNC);
+  const [activeTab, setActiveTab] = useState(DEFAULT_PACKAGES[0].id);
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
 
-  const pkg = PACKAGES.find((p) => p.id === activeTab);
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'pricelist')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active || !data?.value) return;
+        if (data.value.packages) setPackages(mergePackages(data.value.packages));
+        if (Array.isArray(data.value.tnc) && data.value.tnc.length > 0) setTnc(data.value.tnc);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const pkg = packages.find((p) => p.id === activeTab);
 
   return (
     <section id="pricelist" className="section-pad bg-[#0B0B0B] relative overflow-hidden">
@@ -194,7 +122,7 @@ const Pricelist = () => {
           transition={{ duration: 0.6, delay: 0.25 }}
           className="flex flex-wrap justify-center gap-2 mb-10"
         >
-          {PACKAGES.map((p) => (
+          {packages.map((p) => (
             <button
               key={p.id}
               onClick={() => setActiveTab(p.id)}
@@ -221,7 +149,7 @@ const Pricelist = () => {
             {/* Package title row */}
             <div className="flex flex-wrap items-center gap-4 mb-6">
               <div className="w-9 h-9 rounded-xl bg-[#D90429]/15 border border-[#D90429]/25 flex items-center justify-center text-[#D90429] shrink-0">
-                {pkg.icon}
+                {PACKAGE_ICONS[pkg.id]}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
@@ -236,7 +164,7 @@ const Pricelist = () => {
               </div>
               <div className="text-right shrink-0">
                 <div className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5">Mulai dari</div>
-                <div className="text-xl font-bold text-white">{pkg.startFrom}</div>
+                <div className="text-xl font-bold text-white">{formatRupiah(startFrom(pkg))}</div>
               </div>
             </div>
 
@@ -300,12 +228,12 @@ const Pricelist = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-5">
-              {TNC.map((item, i) => (
+              {tnc.map((text, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className="text-[#D90429]/40 text-[10px] font-bold font-mono mt-0.5 shrink-0 tabular-nums w-4">
-                    {item.num}
+                    {String(i + 1).padStart(2, '0')}
                   </span>
-                  <p className="text-gray-400 text-[12px] leading-relaxed">{item.text}</p>
+                  <p className="text-gray-400 text-[12px] leading-relaxed">{text}</p>
                 </div>
               ))}
             </div>

@@ -5,6 +5,7 @@ import { FiPlus, FiTrash2, FiBox, FiCalendar, FiTarget, FiCheck, FiLock, FiUnloc
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { eventTotal as sessionsTotal, SHARING_SOURCE } from '../lib/photoSession';
 
 const AdminFinance = ({ activeSubTab = 'events' }) => {
   const [events, setEvents] = useState([]);
@@ -243,7 +244,10 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
   const handleUpdateIncome = async (eventId, newIncome) => {
     try {
       const val = getRawNumber(newIncome);
-      const { error } = await supabase.from('financial_events').update({ income: val }).eq('id', eventId);
+      const ev = events.find((e) => e.id === eventId);
+      // Selisih terhadap total sesi foto disimpan sebagai penyesuaian, supaya tetap terjaga saat sesi bertambah
+      const adjustment = val - (ev ? sessionsTotal({ sessions: ev.sessions || [] }) : 0);
+      const { error } = await supabase.from('financial_events').update({ income: val, income_adjustment: adjustment }).eq('id', eventId);
       if (error) throw error;
       fetchData();
     } catch (error) {
@@ -392,6 +396,9 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
       const eventExpenses = transactions.filter(t => t.event_id === event.id && t.type === 'event_expense');
       const totalExpense = eventExpenses.reduce((sum, t) => sum + Number(t.amount), 0);
       const netProfit = Number(event.income) - totalExpense;
+      const photoSessions = event.sessions || [];
+      const photoTotal = sessionsTotal({ sessions: photoSessions });
+      const incomeAdjustment = Number(event.income_adjustment || 0);
 
       return (
         <div className="space-y-6 max-w-[1100px]">
@@ -470,7 +477,9 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
                   <div className="bg-[var(--admin-hover-bg)] p-4 rounded-xl border border-[#64D194]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h5 className="text-[#64D194] text-sm font-semibold mb-1">Set Pemasukan Event</h5>
-                      <p className="text-[var(--admin-text-muted)] text-xs">Masukkan total pemasukan kotor dari event ini.</p>
+                      <p className="text-[var(--admin-text-muted)] text-xs">
+                        Total otomatis dari sesi foto: {formatIDR(photoTotal)}. Ubah angka ini untuk koreksi; selisihnya disimpan sebagai penyesuaian.
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[#64D194] text-sm font-medium">Rp</span>
@@ -500,7 +509,12 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
                   <div className="bg-[var(--admin-hover-bg)] p-4 rounded-xl border border-[#64D194]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h5 className="text-[#64D194] text-sm font-semibold mb-1">Pemasukan Event</h5>
-                      <p className="text-[var(--admin-text-muted)] text-xs">Total pemasukan kotor dari event ini.</p>
+                      <p className="text-[var(--admin-text-muted)] text-xs">
+                        Otomatis dari sesi foto ({photoSessions.length} sesi): {formatIDR(photoTotal)}
+                        {incomeAdjustment !== 0 && (
+                          <span> · Penyesuaian manual: {incomeAdjustment > 0 ? '+' : '-'}{formatIDR(Math.abs(incomeAdjustment))}</span>
+                        )}
+                      </p>
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-[#64D194] text-lg font-bold">{formatIDR(event.income)}</span>
@@ -536,10 +550,15 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
                       ) : (
                         eventExpenses.map(exp => (
                           <tr key={exp.id} className="border-b border-white/[0.02] hover:bg-[var(--admin-hover-bg)]">
-                            <td className="py-2.5 px-4 text-[var(--admin-text-main)] text-sm">{exp.description}</td>
+                            <td className="py-2.5 px-4 text-[var(--admin-text-main)] text-sm">
+                              {exp.description}
+                              {exp.auto_source === SHARING_SOURCE && (
+                                <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] align-middle">Otomatis</span>
+                              )}
+                            </td>
                             <td className="py-2.5 px-4 text-[#D28A94] font-medium text-sm text-right">{formatIDR(exp.amount)}</td>
                             <td className="py-2.5 px-4 text-center">
-                              {!event.is_locked ? (
+                              {!event.is_locked && !exp.auto_source ? (
                                 <button onClick={() => confirmDeleteTransaction(exp.id, exp.description)} className="text-[var(--admin-text-muted)] hover:text-[#D28A94]"><FiTrash2 size={14} /></button>
                               ) : (
                                 <span className="text-gray-700 text-xs">-</span>
@@ -579,10 +598,15 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
                     eventExpenses.map(exp => (
                       <div key={exp.id} className="bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] rounded-xl p-3 flex justify-between items-center gap-2">
                         <div className="flex flex-col">
-                          <span className="text-[var(--admin-text-main)] text-sm">{exp.description}</span>
+                          <span className="text-[var(--admin-text-main)] text-sm">
+                            {exp.description}
+                            {exp.auto_source === SHARING_SOURCE && (
+                              <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--admin-accent-bg)] text-[var(--admin-accent)]">Otomatis</span>
+                            )}
+                          </span>
                           <span className="text-[#D28A94] font-medium text-sm">{formatIDR(exp.amount)}</span>
                         </div>
-                        {!event.is_locked && (
+                        {!event.is_locked && !exp.auto_source && (
                           <button onClick={() => confirmDeleteTransaction(exp.id, exp.description)} className="text-[var(--admin-text-muted)] hover:text-[#D28A94] p-2 bg-[var(--admin-input-bg)] rounded-lg transition-colors">
                             <FiTrash2 size={16} />
                           </button>
