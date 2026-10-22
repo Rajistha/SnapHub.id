@@ -1,17 +1,24 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
-import Home from './pages/Home';
-import Admin from './pages/Admin';
-import SesiFoto from './pages/SesiFoto';
-import LiveSesi from './pages/LiveSesi';
+const Home = lazy(() => import('./pages/Home'));
+const Admin = lazy(() => import('./pages/Admin'));
+const SesiFoto = lazy(() => import('./pages/SesiFoto'));
+const LiveSesi = lazy(() => import('./pages/LiveSesi'));
 import ErrorBoundary from './components/ErrorBoundary';
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-[#0B0B0B]">
+    <div className="w-8 h-8 border-4 border-[#D90429] border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 function App() {
   return (
     <Router>
       <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/admin/*" element={<Admin />} />
@@ -19,6 +26,7 @@ function App() {
         <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
         <Route path="/live/:slug" element={<LiveSesi />} />
       </Routes>
+      </Suspense>
       </ErrorBoundary>
       <Analytics />
       <SpeedInsights />

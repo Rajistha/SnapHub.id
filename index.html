@@ -5,6 +5,20 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/icons.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0B0B0B" />
+
+  <!-- Font: preconnect + link (lebih cepat daripada @import di CSS) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" />
+
+  <!-- Tampilan awal sebelum JavaScript siap: tidak lagi layar hitam kosong -->
+  <style>
+    html, body { background: #0B0B0B; margin: 0; }
+    #boot { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    #boot i { width: 32px; height: 32px; border: 3px solid #D90429; border-top-color: transparent; border-radius: 50%; animation: boot-spin .8s linear infinite; }
+    @keyframes boot-spin { to { transform: rotate(360deg); } }
+  </style>
 
   <!-- SEO Meta Tags -->
   <title>SnapHub — Sewa Photobooth Premium | Capture Every Smile</title>
@@ -92,7 +106,7 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root"><div id="boot"><i></i></div></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 
