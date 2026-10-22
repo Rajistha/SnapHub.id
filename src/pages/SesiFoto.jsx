@@ -689,12 +689,12 @@ const SesiFoto = () => {
                               onClick={() => setNoVoucher(opt.value)}
                               className={`px-3 py-2 rounded-lg text-sm transition-colors ${
                                 noVoucher === opt.value
-                                  ? 'bg-[var(--admin-accent)] text-white shadow-sm'
-                                  : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)]'
+                                  ? 'bg-[var(--admin-accent)] text-[#1a0a0d] shadow-sm'
+                                  : 'text-[var(--admin-text-main)]/70 hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-surface)]'
                               }`}
                             >
-                              <span className="block font-medium">{opt.label}</span>
-                              <span className="block text-[11px] opacity-80 tabular-nums">{formatRp(opt.price)}</span>
+                              <span className="block font-semibold">{opt.label}</span>
+                              <span className="block text-[11px] opacity-90 tabular-nums">{formatRp(opt.price)}</span>
                             </button>
                           ))}
                         </div>
