@@ -24,7 +24,7 @@ const takePrefetched = (token) => {
   return null;
 };
 
-const REFRESH_MS = 10000;
+const REFRESH_MS = 4000;
 const WA_URL = 'https://wa.me/6285190643459?text=Halo%20SnapHub%2C%20saya%20butuh%20link%20live%20pencatatan%20terbaru.';
 
 const formatRp = (n) => `Rp ${new Intl.NumberFormat('id-ID').format(n || 0)}`;

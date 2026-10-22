@@ -6,6 +6,7 @@ const Home = lazy(() => import('./pages/Home'));
 const Admin = lazy(() => import('./pages/Admin'));
 const SesiFoto = lazy(() => import('./pages/SesiFoto'));
 const LiveSesi = lazy(() => import('./pages/LiveSesi'));
+const CrewSesi = lazy(() => import('./pages/CrewSesi'));
 import ErrorBoundary from './components/ErrorBoundary';
 
 const PageLoader = () => (
@@ -25,6 +26,7 @@ function App() {
         <Route path="/sesi" element={<SesiFoto />} />
         <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
         <Route path="/live/:slug" element={<LiveSesi />} />
+        <Route path="/crew/:slug" element={<CrewSesi />} />
       </Routes>
       </Suspense>
       </ErrorBoundary>

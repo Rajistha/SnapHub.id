@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, SHARING_SOURCE, SHARING_DESCRIPTION, sessionPrice, eventTotal, voucherCount, eventSharing } from '../lib/photoSession';
-import { FiPlus, FiMinus, FiSearch, FiTrash2, FiEdit2, FiSave, FiX, FiArrowLeft, FiSun, FiMoon, FiLink, FiCopy, FiChevronDown, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiPlus, FiMinus, FiSearch, FiTrash2, FiEdit2, FiSave, FiX, FiArrowLeft, FiSun, FiMoon, FiLink, FiCopy, FiChevronDown, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
 
 const SWIPE_DELETE_WIDTH = 72;
 
@@ -18,6 +18,17 @@ const slugify = (text) =>
 const liveUrl = (event) => {
   const slug = slugify(event.name);
   return `${window.location.origin}/live/${slug ? `${slug}-` : ''}${event.share_token}`;
+};
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+// Selisih hari dari hari ini (lokal) ke tanggal event yyyy-MM-dd.
+const daysUntil = (date, todayStr) =>
+  Math.round((new Date(`${date}T00:00:00`) - new Date(`${todayStr}T00:00:00`)) / 86400000);
+
+const crewUrl = (event) => {
+  const slug = slugify(event.name);
+  return `${window.location.origin}/crew/${slug ? `${slug}-` : ''}${event.crew_token}`;
 };
 
 const SwipeableSessionRow = ({ children, onDelete }) => {
@@ -84,6 +95,7 @@ const SesiFoto = () => {
   const syncChain = useRef(Promise.resolve());
   const writeChain = useRef(Promise.resolve());
   const eventsRef = useRef([]);
+  const pendingWrites = useRef(0);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, type: '', eventId: null, sessionId: null });
 
   const [noVoucher, setNoVoucher] = useState(false);
@@ -148,18 +160,37 @@ const SesiFoto = () => {
     }
   };
 
-  const fetchEvents = async () => {
-    setLoading(true);
+  // Sesi bisa bertambah dari link crew; segarkan berkala dan saat tab kembali aktif,
+  // selama tidak ada simpanan yang tertunda.
+  useEffect(() => {
+    if (!session) return undefined;
+    const refresh = () => {
+      if (pendingWrites.current > 0 || document.hidden) return;
+      fetchEvents(true);
+    };
+    const timer = setInterval(refresh, 4000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [session]);
+
+  const fetchEvents = async (quiet = false) => {
+    if (!quiet) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('financial_events')
         .select('*')
         .order('date', { ascending: false });
       if (error) throw error;
-      setEvents((data || []).map((ev) => ({ ...ev, sessions: ev.sessions || [] })));
+      // Jawaban lama tidak boleh menimpa perubahan yang baru dicatat
+      if (quiet && pendingWrites.current > 0) return;
+      eventsRef.current = (data || []).map((ev) => ({ ...ev, sessions: ev.sessions || [] }));
+      setEvents(eventsRef.current);
     } catch (error) {
       console.error(error);
-      toast.error('Gagal mengambil data sesi foto');
+      if (!quiet) toast.error('Gagal mengambil data sesi foto');
     } finally {
       setLoading(false);
     }
@@ -218,32 +249,37 @@ const SesiFoto = () => {
     });
   };
 
-  // Ubah daftar sesi: tampilan langsung berubah, penyimpanan ke database berurutan.
-  // Selalu bertumpu pada data terbaru (eventsRef) sehingga catatan cepat berturut-turut tidak saling menimpa.
-  const applySessions = (eventId, updater) => {
+  // Ubah daftar sesi: tampilan langsung berubah, lalu server menambah/menghapus SATU sesi secara atomik
+  // (sama seperti link crew), sehingga catatan crew tidak pernah tertimpa. Server juga menghitung
+  // ulang pemasukan dan sharing profit, lalu hasilnya dipakai sebagai data akhir.
+  const mutateSessions = (eventId, updater, fn, args) => {
     const event = eventsRef.current.find((ev) => ev.id === eventId);
     if (!event) return;
     const sessions = updater(event.sessions || []);
-    // Pemasukan keuangan = total sesi + penyesuaian manual (jika pernah diedit di Keuangan Event)
     const income = eventTotal({ sessions }) + Number(event.income_adjustment || 0);
     eventsRef.current = eventsRef.current.map((ev) => (ev.id === eventId ? { ...ev, sessions, income } : ev));
     setEvents(eventsRef.current);
 
+    pendingWrites.current += 1;
     writeChain.current = writeChain.current.then(async () => {
-      const latest = eventsRef.current.find((ev) => ev.id === eventId);
-      if (!latest) return;
       try {
-        const { error } = await supabase
-          .from('financial_events')
-          .update({ sessions: latest.sessions, income: latest.income })
-          .eq('id', eventId);
+        const { data, error } = await supabase.rpc(fn, { p_event_id: eventId, ...args });
         if (error) throw error;
+        // Pakai data server hanya bila ini perubahan terakhir yang menunggu
+        if (data && pendingWrites.current === 1) {
+          eventsRef.current = eventsRef.current.map((ev) =>
+            ev.id === eventId ? { ...ev, sessions: data.sessions || [], income: data.income } : ev
+          );
+          setEvents(eventsRef.current);
+        }
       } catch (error) {
         console.error(error);
-        toast.error('Gagal menyimpan sesi, coba muat ulang halaman');
+        toast.error('Gagal menyimpan sesi, data dimuat ulang');
+        fetchEvents(true);
+      } finally {
+        pendingWrites.current -= 1;
       }
     });
-    syncSharing(eventId);
   };
 
   const handleAddSession = () => {
@@ -254,7 +290,11 @@ const SesiFoto = () => {
       prints: Number(prints) || 0,
       created_at: new Date().toISOString(),
     };
-    applySessions(selectedEvent.id, (sessions) => [...sessions, newSession]);
+    mutateSessions(selectedEvent.id, (sessions) => [...sessions, newSession], 'admin_add_session', {
+      p_id: newSession.id,
+      p_no_voucher: newSession.no_voucher,
+      p_prints: newSession.prints,
+    });
     setNoVoucher(false);
     setPrints(0);
     toast.success('Sesi dicatat');
@@ -262,7 +302,7 @@ const SesiFoto = () => {
 
   const handleDeleteSession = (sessionId) => {
     if (!selectedEvent) return;
-    applySessions(selectedEvent.id, (sessions) => sessions.filter((s) => s.id !== sessionId));
+    mutateSessions(selectedEvent.id, (sessions) => sessions.filter((s) => s.id !== sessionId), 'admin_delete_session', { p_id: sessionId });
     setDeleteModal({ isOpen: false, type: '', eventId: null, sessionId: null });
   };
 
@@ -312,6 +352,30 @@ const SesiFoto = () => {
     if (!selectedEvent) return;
     if (await updateEvent(selectedEvent.id, { share_token: null }, 'Gagal menonaktifkan link')) {
       toast.success('Link live dinonaktifkan');
+    }
+  };
+
+  const copyCrewLink = async (event) => {
+    try {
+      await navigator.clipboard.writeText(crewUrl(event));
+      toast.success('Link crew disalin');
+    } catch {
+      toast.error('Gagal menyalin link');
+    }
+  };
+
+  const enableCrewLink = async () => {
+    if (!selectedEvent) return;
+    const token = crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    if (await updateEvent(selectedEvent.id, { crew_token: token }, 'Gagal membuat link crew')) {
+      copyCrewLink({ ...selectedEvent, crew_token: token });
+    }
+  };
+
+  const disableCrewLink = async () => {
+    if (!selectedEvent) return;
+    if (await updateEvent(selectedEvent.id, { crew_token: null }, 'Gagal menonaktifkan link crew')) {
+      toast.success('Link crew dinonaktifkan');
     }
   };
 
@@ -397,7 +461,7 @@ const SesiFoto = () => {
     <div className="min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)] transition-colors duration-300" data-theme={theme}>
       <Toaster position="top-center" toastOptions={{ style: { background: '#333', color: '#fff' } }} />
 
-      <div className="max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-10">
+      <div className="max-w-2xl mx-auto px-4 py-6 md:py-10">
         <div className="mb-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             {selectedEvent ? (
@@ -439,7 +503,7 @@ const SesiFoto = () => {
             <div className="w-8 h-8 border-4 border-[#D90429] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto">
+          <div>
             {/* Events List */}
             {!selectedEvent && (
             <aside className="border border-[var(--admin-border)] rounded-2xl p-3 space-y-3">
@@ -481,16 +545,39 @@ const SesiFoto = () => {
                         <button
                           key={ev.id}
                           onClick={() => setSelectedEventId(ev.id)}
-                          className="w-full text-left px-3.5 py-3 rounded-xl border-l-2 border-transparent hover:bg-[var(--admin-hover-bg)] transition-colors"
+                          className="w-full flex items-center gap-3.5 text-left px-3 py-3 rounded-xl hover:bg-[var(--admin-hover-bg)] active:scale-[0.99] transition"
                         >
-                          <p className={`text-sm font-semibold truncate ${group.dim ? 'text-[var(--admin-text-muted)]' : 'text-[var(--admin-text-main)]'}`}>
-                            {ev.name}
-                          </p>
-                          <div className="flex items-center justify-between gap-2 mt-1">
-                            <p className="text-xs text-[var(--admin-text-muted)] truncate">
-                              {formatDate(ev.date)} · {(ev.sessions || []).length} sesi
+                          <div
+                            className={`w-12 h-12 shrink-0 rounded-xl flex flex-col items-center justify-center leading-none ${
+                              group.dim
+                                ? 'bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)]'
+                                : 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)]'
+                            }`}
+                          >
+                            <span className="text-base font-bold tabular-nums">{ev.date ? Number(ev.date.slice(8, 10)) : '–'}</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide mt-1">{ev.date ? MONTHS[Number(ev.date.slice(5, 7)) - 1] : ''}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold truncate ${group.dim ? 'text-[var(--admin-text-muted)]' : 'text-[var(--admin-text-main)]'}`}>
+                              {ev.name}
                             </p>
-                            <span className="text-xs font-semibold text-[var(--admin-text-main)] shrink-0 tabular-nums">{formatRp(eventTotal(ev))}</span>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-[var(--admin-text-muted)]">
+                              <span className="tabular-nums">{(ev.sessions || []).length} sesi</span>
+                              {!group.dim && ev.date && (() => {
+                                const d = daysUntil(ev.date, todayStr);
+                                return (
+                                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${d === 0 ? 'bg-green-500/15 text-green-500' : 'bg-[var(--admin-hover-bg)]'}`}>
+                                    {d === 0 ? 'Hari ini' : `${d} hari lagi`}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                          <div className="shrink-0 flex items-center gap-2">
+                            <span className={`text-sm font-semibold tabular-nums ${(ev.sessions || []).length === 0 ? 'text-[var(--admin-text-muted)] font-normal' : 'text-[var(--admin-text-main)]'}`}>
+                              {formatRp(eventTotal(ev))}
+                            </span>
+                            <FiChevronRight size={16} className="text-[var(--admin-text-muted)]" />
                           </div>
                         </button>
                       ))}
@@ -649,6 +736,36 @@ const SesiFoto = () => {
                           className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-[var(--admin-border)] text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
                         >
                           <FiLink size={14} /> Buat & salin link live
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-[var(--admin-border-subtle)]">
+                      <p className="text-xs text-[var(--admin-text-muted)] mb-2">Link crew untuk mencatat sesi (tanpa login)</p>
+                      {selectedEvent.crew_token ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] pl-3 pr-1 py-1">
+                            <span className="flex-1 min-w-0 truncate text-xs text-[var(--admin-text-muted)]">{crewUrl(selectedEvent)}</span>
+                            <button
+                              onClick={() => copyCrewLink(selectedEvent)}
+                              className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--admin-accent)] text-white text-xs font-medium hover:opacity-90 transition-opacity"
+                            >
+                              <FiCopy size={12} /> Salin
+                            </button>
+                          </div>
+                          <button
+                            onClick={disableCrewLink}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-red-500/30 text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors"
+                          >
+                            <FiX size={14} /> Nonaktifkan link crew
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={enableCrewLink}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-[var(--admin-border)] text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
+                        >
+                          <FiLink size={14} /> Buat & salin link crew
                         </button>
                       )}
                     </div>
