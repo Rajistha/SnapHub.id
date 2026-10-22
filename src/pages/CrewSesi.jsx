@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
-import { FiLink2, FiWifiOff, FiCalendar, FiPlus, FiMinus, FiTrash2, FiClock, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiLink2, FiWifiOff, FiCalendar, FiPlus, FiMinus, FiTrash2, FiEye, FiEyeOff } from 'react-icons/fi';
+import SwipeableSessionRow from '../components/SwipeableSessionRow';
 import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, sessionPrice, eventTotal } from '../lib/photoSession';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -274,65 +275,54 @@ const CrewSesi = () => {
             </div>
 
             {/* Riwayat */}
-            <div className="rounded-3xl border border-[var(--admin-border)] bg-[var(--admin-surface)] p-5">
+            <div className="border border-[var(--admin-border)] rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-muted)]">Riwayat Sesi</h2>
-                <span className="text-xs text-[var(--admin-text-muted)] tabular-nums">{sessions.length} sesi</span>
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-muted)]">
+                  Riwayat Sesi ({sessions.length})
+                </h2>
               </div>
 
               {sessions.length === 0 ? (
                 <p className="text-sm text-[var(--admin-text-muted)] text-center py-8">Belum ada sesi tercatat.</p>
               ) : (
-                <div className="divide-y divide-[var(--admin-border-subtle)] max-h-[420px] overflow-y-auto pr-1">
+                <div className={`divide-y divide-[var(--admin-border-subtle)] ${sessions.length > 5 ? 'max-h-[320px] overflow-y-auto pr-1' : ''}`}>
                   {[...sessions].reverse().map((s, idx) => (
-                    <div key={s.id} className="flex items-center justify-between gap-3 py-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-[var(--admin-hover-bg)] text-xs font-semibold text-[var(--admin-text-muted)] tabular-nums">
-                          {sessions.length - idx}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                                s.no_voucher ? 'bg-amber-500/15 text-amber-500' : 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)]'
-                              }`}
-                            >
-                              {s.no_voucher ? 'Non-voucher' : 'Voucher'}
-                            </span>
-                            {s.prints > 0 && <span className="text-xs text-[var(--admin-text-muted)]">{s.prints} print</span>}
+                    <SwipeableSessionRow key={s.id} onDelete={() => setConfirmId(s.id)}>
+                      <div className="flex items-center justify-between gap-3 py-3 group">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="w-7 h-7 shrink-0 flex items-center justify-center rounded-full bg-[var(--admin-hover-bg)] text-xs font-semibold text-[var(--admin-text-muted)] tabular-nums">
+                            {sessions.length - idx}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                s.no_voucher
+                                  ? 'bg-amber-500/15 text-amber-500'
+                                  : 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)]'
+                              }`}>
+                                {s.no_voucher ? 'Non-voucher' : 'Voucher'}
+                              </span>
+                              {s.prints > 0 && (
+                                <span className="text-xs text-[var(--admin-text-muted)]">{s.prints} print</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[var(--admin-text-muted)] mt-1">
+                              {new Date(s.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
                           </div>
-                          <p className="flex items-center gap-1.5 text-xs text-[var(--admin-text-muted)] mt-1 tabular-nums">
-                            <FiClock size={11} />
-                            {new Date(s.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-sm font-semibold text-[var(--admin-text-main)] tabular-nums">{formatRp(sessionPrice(s))}</span>
+                          <button
+                            onClick={() => setConfirmId(s.id)}
+                            className="hidden sm:block p-1.5 rounded-md text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Hapus sesi"
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
                         </div>
                       </div>
-                      <span className="ml-auto text-sm font-semibold tabular-nums shrink-0">{formatRp(sessionPrice(s))}</span>
-                      {confirmId === s.id ? (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={() => setConfirmId(null)}
-                            className="px-3 py-2 rounded-lg border border-[var(--admin-border)] text-xs font-medium hover:bg-[var(--admin-hover-bg)] transition-colors"
-                          >
-                            Batal
-                          </button>
-                          <button
-                            onClick={() => handleDelete(s.id)}
-                            className="px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium transition-colors"
-                          >
-                            Hapus
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmId(s.id)}
-                          className="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                          aria-label="Hapus sesi"
-                        >
-                          <FiTrash2 size={15} />
-                        </button>
-                      )}
-                    </div>
+                    </SwipeableSessionRow>
                   ))}
                 </div>
               )}
@@ -344,6 +334,31 @@ const CrewSesi = () => {
           </div>
         )}
       </div>
+      {confirmId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmId(null)} />
+          <div className="relative bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-lg font-bold text-red-400 mb-2">Hapus Sesi?</h3>
+            <p className="text-[var(--admin-text-muted)] text-sm mb-6">
+              Sesi ini akan terhapus permanen dan pemasukan di keuangan ikut berkurang.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmId(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-[var(--admin-border)] text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors font-medium text-sm"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => handleDelete(confirmId)}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors font-medium text-sm"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
