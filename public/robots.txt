@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin
 
-Sitemap: https://www.snaphub-akasha.site/sitemap.xml
+Sitemap: https://snaphub.my.id/sitemap.xml

@@ -5,7 +5,7 @@
   **Premium Photobooth Services in Malang, Indonesia**
 
   <p>
-    <a href="https://www.snaphub-akasha.site">View Live Demo</a> ·
+    <a href="https://snaphub.my.id">View Live Demo</a> ·
     <a href="https://wa.me/6285190643459">Contact Us</a>
   </p>
 </div>
@@ -93,7 +93,7 @@ public/
 
 This project is optimized for deployment on [Vercel](https://vercel.com). Because it uses Vite, the build command is `npm run build` and the output directory is `dist`. Ensure you add your Supabase Environment Variables to your Vercel project settings.
 
-Live Deployment URL: [www.snaphub-akasha.site](https://www.snaphub-akasha.site)
+Live Deployment URL: [snaphub.my.id](https://snaphub.my.id)
 
 ## 📞 Contact
 
