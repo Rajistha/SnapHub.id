@@ -2,7 +2,27 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence, animate } from 'framer-motion';
 import { FiLink2, FiWifiOff, FiCalendar, FiClock, FiTag, FiUser, FiLayers, FiX } from 'react-icons/fi';
-import { supabase } from '../lib/supabase';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+// Panggilan ringan lewat fetch (tanpa memuat supabase-js ±200KB hanya untuk satu permintaan).
+const fetchLiveEvent = (token) =>
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/get_live_event`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_token: token }),
+  }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))));
+
+// Muat pertama memakai permintaan yang sudah dimulai oleh index.html (kalau ada)
+const takePrefetched = (token) => {
+  const pre = window.__live;
+  if (pre && pre.token === token) {
+    window.__live = null;
+    return pre.promise;
+  }
+  return null;
+};
 
 const REFRESH_MS = 10000;
 const WA_URL = 'https://wa.me/6285190643459?text=Halo%20SnapHub%2C%20saya%20butuh%20link%20live%20pencatatan%20terbaru.';
@@ -53,13 +73,16 @@ const LiveSesi = () => {
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      const { data, error } = await supabase.rpc('get_live_event', { p_token: token });
-      if (!active) return;
-      if (error) {
+    const load = async (first = false) => {
+      let data;
+      try {
+        data = await ((first && takePrefetched(token)) || fetchLiveEvent(token)).catch(() => fetchLiveEvent(token));
+      } catch {
+        if (!active) return;
         setStatus((s) => (s === 'ready' ? s : 'error'));
         return;
       }
+      if (!active) return;
       if (!data) {
         setEvent(null);
         setStatus('notfound');
@@ -69,8 +92,8 @@ const LiveSesi = () => {
       setStatus('ready');
       setUpdatedAt(new Date());
     };
-    load();
-    const timer = setInterval(load, REFRESH_MS);
+    load(true);
+    const timer = setInterval(() => load(), REFRESH_MS);
     return () => {
       active = false;
       clearInterval(timer);
@@ -102,7 +125,7 @@ const LiveSesi = () => {
 
   return (
     <div className="relative min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)] overflow-hidden">
-      <div className="pointer-events-none absolute top-[-120px] left-1/2 -translate-x-1/2 w-[640px] h-[360px] bg-[#D90429]/10 blur-[110px] rounded-full" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px]" style={{ background: 'radial-gradient(ellipse 60% 70% at 50% 0%, rgba(217,4,41,0.14), transparent 70%)' }} />
       <div className="relative max-w-xl mx-auto px-4 py-8">
         {status === 'loading' && (
           <div className="flex justify-center py-20">
@@ -114,7 +137,7 @@ const LiveSesi = () => {
           <div className="relative min-h-[85vh] flex flex-col items-center justify-center text-center">
             {/* Ambient glow + dot grid */}
             <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] w-[480px] h-[480px] bg-[#D90429]/15 blur-[110px] rounded-full" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] w-[480px] h-[480px] rounded-full" style={{ background: 'radial-gradient(circle, rgba(217,4,41,0.18), transparent 70%)' }} />
               <div
                 className="absolute inset-0 opacity-[0.07]"
                 style={{
@@ -225,7 +248,7 @@ const LiveSesi = () => {
               {...fadeUp(0.16)}
               className="relative overflow-hidden rounded-3xl border border-[var(--admin-accent)]/20 bg-gradient-to-br from-[#2a1519] via-[#160F11] to-[#0b0708] p-6 md:p-7"
             >
-              <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#D90429]/20 blur-[70px]" />
+              <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full" style={{ background: 'radial-gradient(circle, rgba(217,4,41,0.22), transparent 70%)' }} />
               <div className="relative">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-white/50 font-semibold">Estimasi sharing profit</p>
                 <p className="text-4xl md:text-5xl font-bold text-[var(--admin-accent)] mt-3 tabular-nums font-heading">
@@ -288,7 +311,6 @@ const LiveSesi = () => {
                           {g.items.map(({ s, n }) => (
                             <motion.div
                               key={s.id}
-                              layout="position"
                               initial={{ opacity: 0, x: -24, backgroundColor: 'rgba(231,158,167,0.25)' }}
                               animate={{ opacity: 1, x: 0, backgroundColor: 'rgba(231,158,167,0)' }}
                               transition={{ duration: 0.45, backgroundColor: { duration: 1.6 } }}

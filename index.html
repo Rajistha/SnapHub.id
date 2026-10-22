@@ -7,11 +7,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0B0B0B" />
 
-  <!-- Font: preconnect + link (lebih cepat daripada @import di CSS) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" />
-
   <!-- Tampilan awal sebelum JavaScript siap: tidak lagi layar hitam kosong -->
   <style>
     html, body { background: #0B0B0B; margin: 0; }
@@ -52,12 +47,26 @@
   <meta name="twitter:image" content="https://snaphub.my.id/og-image.png" />
   <meta name="twitter:image:alt" content="SnapHub Premium Photobooth Services" />
 
-  <!-- Google Fonts Preconnect -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet" />
+  <!-- Font di-host sendiri (@fontsource), tanpa stylesheet pihak ketiga yang memblokir tampilan -->
+
+  <!-- Koneksi ke Supabase disiapkan lebih awal -->
+  <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+
+  <!-- Halaman live customer: minta data segera, paralel dengan unduhan JavaScript -->
+  <script>
+    (function () {
+      var m = location.pathname.match(/^\/live\/([^/]+)/);
+      if (!m) return;
+      var token = m[1].split('-').pop();
+      var p = fetch('%VITE_SUPABASE_URL%/rest/v1/rpc/get_live_event', {
+        method: 'POST',
+        headers: { apikey: '%VITE_SUPABASE_ANON_KEY%', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_token: token })
+      }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); });
+      p.catch(function () {});
+      window.__live = { token: token, promise: p };
+    })();
+  </script>
 
   <!-- Theme color -->
   <meta name="theme-color" content="#0B0B0B" />
