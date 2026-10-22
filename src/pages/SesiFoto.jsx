@@ -82,6 +82,8 @@ const SesiFoto = () => {
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [eventSearch, setEventSearch] = useState('');
   const syncChain = useRef(Promise.resolve());
+  const writeChain = useRef(Promise.resolve());
+  const eventsRef = useRef([]);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, type: '', eventId: null, sessionId: null });
 
   const [noVoucher, setNoVoucher] = useState(false);
@@ -93,6 +95,10 @@ const SesiFoto = () => {
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
+
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
 
   useEffect(() => {
     localStorage.setItem('sesiHideTotal', hideTotal ? '1' : '0');
@@ -177,9 +183,13 @@ const SesiFoto = () => {
   }, [selectedEventId]);
 
   // Sinkronkan baris pengeluaran "Sharing profit" di keuangan event (satu baris per event).
-  const syncSharing = (eventId, amount) => {
+  const syncSharing = (eventId) => {
     syncChain.current = syncChain.current.then(async () => {
       try {
+        // Hitung dari data terbaru saat giliran dijalankan, supaya hasil akhirnya selalu benar
+        const latest = eventsRef.current.find((ev) => ev.id === eventId);
+        if (!latest) return;
+        const amount = eventSharing(latest);
         const { data: existing, error } = await supabase
           .from('transactions')
           .select('id')
@@ -208,34 +218,43 @@ const SesiFoto = () => {
     });
   };
 
-  const persistSessions = async (event, updatedSessions) => {
-    const next = { ...event, sessions: updatedSessions };
+  // Ubah daftar sesi: tampilan langsung berubah, penyimpanan ke database berurutan.
+  // Selalu bertumpu pada data terbaru (eventsRef) sehingga catatan cepat berturut-turut tidak saling menimpa.
+  const applySessions = (eventId, updater) => {
+    const event = eventsRef.current.find((ev) => ev.id === eventId);
+    if (!event) return;
+    const sessions = updater(event.sessions || []);
     // Pemasukan keuangan = total sesi + penyesuaian manual (jika pernah diedit di Keuangan Event)
-    const income = eventTotal(next) + Number(event.income_adjustment || 0);
-    try {
-      const { error } = await supabase
-        .from('financial_events')
-        .update({ sessions: updatedSessions, income })
-        .eq('id', event.id);
-      if (error) throw error;
-      setEvents((prev) => prev.map((ev) => (ev.id === event.id ? { ...ev, sessions: updatedSessions, income } : ev)));
-      syncSharing(event.id, eventSharing(next));
-    } catch (error) {
-      console.error(error);
-      toast.error('Gagal menyimpan sesi');
-    }
+    const income = eventTotal({ sessions }) + Number(event.income_adjustment || 0);
+    eventsRef.current = eventsRef.current.map((ev) => (ev.id === eventId ? { ...ev, sessions, income } : ev));
+    setEvents(eventsRef.current);
+
+    writeChain.current = writeChain.current.then(async () => {
+      const latest = eventsRef.current.find((ev) => ev.id === eventId);
+      if (!latest) return;
+      try {
+        const { error } = await supabase
+          .from('financial_events')
+          .update({ sessions: latest.sessions, income: latest.income })
+          .eq('id', eventId);
+        if (error) throw error;
+      } catch (error) {
+        console.error(error);
+        toast.error('Gagal menyimpan sesi, coba muat ulang halaman');
+      }
+    });
+    syncSharing(eventId);
   };
 
   const handleAddSession = () => {
     if (!selectedEvent) return;
     const newSession = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       no_voucher: noVoucher,
       prints: Number(prints) || 0,
       created_at: new Date().toISOString(),
     };
-    const updatedSessions = [...(selectedEvent.sessions || []), newSession];
-    persistSessions(selectedEvent, updatedSessions);
+    applySessions(selectedEvent.id, (sessions) => [...sessions, newSession]);
     setNoVoucher(false);
     setPrints(0);
     toast.success('Sesi dicatat');
@@ -243,8 +262,7 @@ const SesiFoto = () => {
 
   const handleDeleteSession = (sessionId) => {
     if (!selectedEvent) return;
-    const updatedSessions = (selectedEvent.sessions || []).filter((s) => s.id !== sessionId);
-    persistSessions(selectedEvent, updatedSessions);
+    applySessions(selectedEvent.id, (sessions) => sessions.filter((s) => s.id !== sessionId));
     setDeleteModal({ isOpen: false, type: '', eventId: null, sessionId: null });
   };
 
@@ -252,7 +270,8 @@ const SesiFoto = () => {
     try {
       const { error } = await supabase.from('financial_events').update(patch).eq('id', eventId);
       if (error) throw error;
-      setEvents((prev) => prev.map((ev) => (ev.id === eventId ? { ...ev, ...patch } : ev)));
+      eventsRef.current = eventsRef.current.map((ev) => (ev.id === eventId ? { ...ev, ...patch } : ev));
+      setEvents(eventsRef.current);
       return true;
     } catch (error) {
       console.error(error);
@@ -267,7 +286,7 @@ const SesiFoto = () => {
     setShareDraft(String(value));
     if (value === (selectedEvent.share_per_voucher || 0)) return;
     if (await updateEvent(selectedEvent.id, { share_per_voucher: value }, 'Gagal menyimpan sharing profit')) {
-      syncSharing(selectedEvent.id, voucherCount(selectedEvent) * value);
+      syncSharing(selectedEvent.id);
       toast.success('Sharing profit disimpan, pengeluaran di keuangan diperbarui');
     }
   };
