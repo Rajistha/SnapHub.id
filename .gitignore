@@ -38,3 +38,6 @@ Thumbs.db
 coverage/
 .gemini/
 .agents/
+
+# backup migrasi Supabase (berisi data bisnis)
+supabase/migrate/backup/

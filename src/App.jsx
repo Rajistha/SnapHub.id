@@ -6,10 +6,12 @@ import Home from './pages/Home';
 import Admin from './pages/Admin';
 import SesiFoto from './pages/SesiFoto';
 import LiveSesi from './pages/LiveSesi';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
     <Router>
+      <ErrorBoundary>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/admin/*" element={<Admin />} />
@@ -17,6 +19,7 @@ function App() {
         <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
         <Route path="/live/:slug" element={<LiveSesi />} />
       </Routes>
+      </ErrorBoundary>
       <Analytics />
       <SpeedInsights />
     </Router>
