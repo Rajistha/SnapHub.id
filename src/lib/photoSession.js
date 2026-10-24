@@ -7,13 +7,17 @@ export const PRINT_PRICE = 10000;
 export const SHARING_SOURCE = 'sharing_profit';
 export const SHARING_DESCRIPTION = 'Sharing profit (otomatis)';
 
-export const sessionPrice = (session) => {
-  const base = session.no_voucher ? NO_VOUCHER_PRICE : VOUCHER_PRICE;
-  return base + (session.prints || 0) * PRINT_PRICE;
+export const sessionPrice = (session, customPrices = {}) => {
+  const vPrice = customPrices?.voucherPrice ?? VOUCHER_PRICE;
+  const nvPrice = customPrices?.noVoucherPrice ?? NO_VOUCHER_PRICE;
+  const pPrice = customPrices?.printPrice ?? PRINT_PRICE;
+  const base = session.no_voucher ? nvPrice : vPrice;
+  return base + (session.prints || 0) * pPrice;
 };
 
-export const eventTotal = (event) => (event.sessions || []).reduce((sum, s) => sum + sessionPrice(s), 0);
+export const eventTotal = (event, customPrices = {}) =>
+  (event?.sessions || []).reduce((sum, s) => sum + sessionPrice(s, customPrices), 0);
 
-export const voucherCount = (event) => (event.sessions || []).filter((s) => !s.no_voucher).length;
+export const voucherCount = (event) => (event?.sessions || []).filter((s) => !s.no_voucher).length;
 
-export const eventSharing = (event) => voucherCount(event) * (event.share_per_voucher || 0);
+export const eventSharing = (event) => voucherCount(event) * (event?.share_per_voucher || 0);

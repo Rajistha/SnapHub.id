@@ -6,7 +6,7 @@ import {
   FiExternalLink, FiEye, FiEyeOff, FiSave, FiUpload, 
   FiImage, FiSearch, FiCheck, FiX, FiLink, FiCamera, 
   FiCalendar, FiTag, FiStar, FiGlobe, FiRefreshCw,
-  FiShare2, FiSettings, FiSliders, FiChevronDown, FiFolder, FiList
+  FiShare2, FiSettings, FiSliders, FiChevronDown, FiFolder, FiList, FiBarChart2
 } from 'react-icons/fi';
 import { DEFAULT_LINKTREE_PROFILE, DEFAULT_LINKS, LINK_CATEGORIES } from '../lib/linktreeDefaults';
 
@@ -547,78 +547,89 @@ const AdminLinks = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      {/* ── Top Bar: Title & Stats ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-4 sm:p-6 rounded-2xl shadow-sm">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#D90429]/15 text-[#D90429] flex items-center justify-center text-xl font-bold shrink-0">
-              <FiLink />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold text-[var(--admin-text-main)] font-heading">
-                Kelola Linktree & Bio Links
-              </h1>
-              <p className="text-xs text-[var(--admin-text-muted)] mt-0.5 line-clamp-2 sm:line-clamp-none">
-                Atur tautan kegiatan, logo sponsor/klien, promo, dan menu profil untuk pengunjung.
-              </p>
-            </div>
+      {/* ── Action Toolbar ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-2xl shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[#D90429]/15 text-[#D90429] flex items-center justify-center text-sm font-bold shrink-0">
+            <FiLink />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-[var(--admin-text-main)] font-heading leading-tight">
+              Daftar Tautan ({links.length})
+            </h3>
+            <p className="text-[11px] text-[var(--admin-text-muted)] mt-0.5">
+              Kelola urutan dan status tampil di link.snaphub.my.id
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs sm:text-sm font-medium transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs font-semibold transition-all cursor-pointer"
           >
-            <FiSettings className="text-[#D90429] shrink-0" size={14} />
-            <span className="truncate">Pengaturan Bio</span>
+            <FiSettings className="text-[#D90429]" size={13} />
+            <span>Pengaturan Bio</span>
           </button>
-
-          <a
-            href={getPublicBioUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs sm:text-sm font-medium transition-all"
-          >
-            <FiExternalLink className="shrink-0" size={14} />
-            <span className="truncate">Buka Bio</span>
-          </a>
 
           <button
             onClick={() => openSectionModal()}
-            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs sm:text-sm font-medium transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs font-semibold transition-all cursor-pointer"
           >
-            <FiTag className="text-[#D90429] shrink-0" size={14} />
-            <span className="truncate">+ Section</span>
+            <FiFolder className="text-purple-400" size={13} />
+            <span>+ Section</span>
           </button>
 
           <button
             onClick={() => openModal()}
-            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold shadow-lg shadow-[#D90429]/25 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs font-bold shadow-md shadow-[#D90429]/25 transition-all cursor-pointer"
           >
-            <FiPlus size={16} className="shrink-0" />
-            <span className="truncate">+ Link Baru</span>
+            <FiPlus size={15} />
+            <span>Tambah Link</span>
           </button>
         </div>
       </div>
 
       {/* ── Metric Cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
-          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Total Link</span>
-          <p className="text-xl sm:text-2xl font-bold text-[var(--admin-text-main)] mt-0.5 sm:mt-1">{links.length}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Total Link</span>
+            <p className="text-xl sm:text-2xl font-extrabold text-[var(--admin-text-main)] mt-0.5">{links.length}</p>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+            <FiLink size={16} />
+          </div>
         </div>
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
-          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Link Aktif</span>
-          <p className="text-xl sm:text-2xl font-bold text-emerald-500 mt-0.5 sm:mt-1">{activeCount}</p>
+
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Link Aktif</span>
+            <p className="text-xl sm:text-2xl font-extrabold text-emerald-400 mt-0.5">{activeCount}</p>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+            <FiEye size={16} />
+          </div>
         </div>
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
-          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Total Klik</span>
-          <p className="text-xl sm:text-2xl font-bold text-[var(--admin-text-main)] mt-0.5 sm:mt-1">{totalClicks.toLocaleString('id-ID')}</p>
+
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Total Klik</span>
+            <p className="text-xl sm:text-2xl font-extrabold text-purple-400 mt-0.5">{totalClicks.toLocaleString('id-ID')}</p>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
+            <FiBarChart2 size={16} />
+          </div>
         </div>
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
-          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Client Logos</span>
-          <p className="text-xl sm:text-2xl font-bold text-amber-500 mt-0.5 sm:mt-1">{clientLogos.length}</p>
+
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Client Logos</span>
+            <p className="text-xl sm:text-2xl font-extrabold text-amber-400 mt-0.5">{clientLogos.length}</p>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
+            <FiImage size={16} />
+          </div>
         </div>
       </div>
 
@@ -898,27 +909,27 @@ const AdminLinks = () => {
       </div>
 
       {/* ── Search & Filter Bar ── */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-3.5 rounded-2xl shadow-sm">
         <div className="relative w-full sm:w-72">
-          <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)]" />
+          <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)]" size={14} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari link, kegiatan, url..."
-            className="w-full pl-10 pr-4 py-2 bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-lg text-xs sm:text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
+            className="w-full pl-9 pr-3 py-2 bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] rounded-xl text-xs sm:text-sm text-[var(--admin-text-main)] placeholder-[var(--admin-text-muted)] focus:outline-none focus:border-[#D90429] transition-colors"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           {LINK_CATEGORIES.map((cat) => (
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat)}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
                 categoryFilter === cat
-                  ? 'bg-[#D90429] text-white font-semibold shadow-sm'
-                  : 'bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:text-white'
+                  ? 'bg-[#D90429] text-white shadow-sm'
+                  : 'bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] border border-transparent hover:border-[var(--admin-border)]'
               }`}
             >
               {cat}

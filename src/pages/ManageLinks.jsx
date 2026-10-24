@@ -127,53 +127,49 @@ const ManageLinks = () => {
 
   return (
     <div className="min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)] transition-colors duration-300" data-theme={theme}>
-      <Toaster position="top-center" toastOptions={{ style: { background: '#333', color: '#fff' } }} />
+      <Toaster position="top-center" toastOptions={{ style: { background: '#222', color: '#fff' } }} />
 
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-[var(--admin-surface)]/90 backdrop-blur-md border-b border-[var(--admin-border)] px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <a
-            href={getAdminUrl()}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--admin-border)] text-xs font-medium text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
-            title="Kembali ke Dashboard Utama"
-          >
-            <FiArrowLeft size={14} />
-            <span className="hidden sm:inline">Admin</span>
-          </a>
-          <div className="h-4 w-px bg-[var(--admin-border)] hidden sm:block" />
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-10">
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <a
+              href={getAdminUrl()}
+              className="shrink-0 p-2.5 rounded-xl border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
+              title="Kembali ke Dashboard Utama"
+            >
+              <FiArrowLeft size={16} />
+            </a>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-[var(--admin-text-main)] font-heading leading-tight">
+                Kelola Link & Bio
+              </h2>
+              <p className="text-[var(--admin-text-muted)] text-xs mt-0.5">
+                app.snaphub.my.id/links • Atur linktree, kegiatan & profil publik
+              </p>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#D90429]/15 text-[#D90429] flex items-center justify-center text-sm font-bold">
-              <FiLink />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-[var(--admin-text-main)] leading-none">Links</h2>
-              <span className="text-[10px] text-[var(--admin-text-muted)] font-mono">app.snaphub.my.id/links</span>
-            </div>
+            <a
+              href={getBioUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] border border-[var(--admin-accent)]/20 hover:border-[var(--admin-accent)]/40 text-xs font-semibold transition-colors"
+            >
+              <FiExternalLink size={13} />
+              <span className="hidden sm:inline">Lihat Halaman Bio</span>
+            </a>
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-2.5 rounded-xl border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
+              title={theme === 'dark' ? 'Dark' : 'Light'}
+            >
+              {theme === 'dark' ? <FiMoon size={16} /> : <FiSun size={16} />}
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <a
-            href={getBioUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] border border-[var(--admin-accent)]/20 hover:border-[var(--admin-accent)]/40 text-xs font-semibold transition-colors"
-          >
-            <FiExternalLink size={13} />
-            <span className="hidden sm:inline">Buka Bio</span>
-          </a>
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="p-2 rounded-xl border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
-            title={theme === 'dark' ? 'Dark' : 'Light'}
-          >
-            {theme === 'dark' ? <FiMoon size={16} /> : <FiSun size={16} />}
-          </button>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 md:py-8">
         <AdminLinks />
       </main>
     </div>

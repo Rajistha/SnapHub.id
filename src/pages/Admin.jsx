@@ -4,7 +4,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, 
   FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, 
-  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget 
+  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget, FiUsers 
 } from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
@@ -217,6 +217,14 @@ const Admin = () => {
       id: 'app',
       title: 'Apps',
       items: [
+        { 
+          id: 'queue', 
+          label: 'Queue', 
+          icon: <FiUsers size={18} />, 
+          isLink: true, 
+          to: isLocalhost ? '/queue' : 'https://app.snaphub.my.id/queue',
+          isExternal: !isLocalhost 
+        },
         { 
           id: 'links', 
           label: 'Links', 

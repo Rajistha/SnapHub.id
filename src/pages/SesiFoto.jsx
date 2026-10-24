@@ -4,7 +4,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, SHARING_SOURCE, SHARING_DESCRIPTION, sessionPrice, eventTotal, voucherCount, eventSharing } from '../lib/photoSession';
 import SwipeableSessionRow from '../components/SwipeableSessionRow';
-import { FiPlus, FiMinus, FiSearch, FiTrash2, FiEdit2, FiSave, FiX, FiArrowLeft, FiSun, FiMoon, FiLink, FiCopy, FiChevronDown, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiPlus, FiMinus, FiSearch, FiTrash2, FiEdit2, FiSave, FiX, FiArrowLeft, FiSun, FiMoon, FiLink, FiCopy, FiChevronDown, FiChevronRight, FiEye, FiEyeOff, FiTag, FiSettings } from 'react-icons/fi';
 
 const formatRp = (n) => `Rp ${new Intl.NumberFormat('id-ID').format(n || 0)}`;
 
@@ -85,6 +85,113 @@ const SesiFoto = () => {
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
+
+  // Per-Event MoU & Pricing State (Tiap event memiliki MoU terpisah)
+  const getEventPricing = (eventOrId) => {
+    if (!eventOrId) return { voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000 };
+    if (typeof eventOrId === 'object') {
+      if (eventOrId.voucher_price != null) {
+        return {
+          voucherPrice: eventOrId.voucher_price ?? 30000,
+          noVoucherPrice: eventOrId.no_voucher_price ?? 35000,
+          printPrice: eventOrId.print_price ?? 10000,
+        };
+      }
+      return getEventPricing(eventOrId.id);
+    }
+    const ev = (eventsRef.current || []).find((e) => e.id === eventOrId);
+    if (ev && ev.voucher_price != null) {
+      return {
+        voucherPrice: ev.voucher_price ?? 30000,
+        noVoucherPrice: ev.no_voucher_price ?? 35000,
+        printPrice: ev.print_price ?? 10000,
+      };
+    }
+    try {
+      const raw = localStorage.getItem(`snaphub_event_pricing_${eventOrId}`);
+      if (raw) return { voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000, ...JSON.parse(raw) };
+    } catch {}
+    return { voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000 };
+  };
+
+  const [eventPricing, setEventPricing] = useState({ voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000 });
+  const [isEventPriceModalOpen, setIsEventPriceModalOpen] = useState(false);
+  const [draftVoucherPrice, setDraftVoucherPrice] = useState(30000);
+  const [draftNoVoucherPrice, setDraftNoVoucherPrice] = useState(35000);
+  const [draftPrintPrice, setDraftPrintPrice] = useState(10000);
+  const [draftSharePerVoucher, setDraftSharePerVoucher] = useState(0);
+
+  useEffect(() => {
+    if (selectedEventId) {
+      const pricing = getEventPricing(selectedEventId);
+      setEventPricing(pricing);
+      supabase
+        .from('settings')
+        .select('value')
+        .eq('key', `event_pricing_${selectedEventId}`)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.value) {
+            try {
+              const cloudPricing = JSON.parse(data.value);
+              setEventPricing((prev) => ({ ...prev, ...cloudPricing }));
+              localStorage.setItem(`snaphub_event_pricing_${selectedEventId}`, JSON.stringify(cloudPricing));
+            } catch {}
+          }
+        });
+    }
+  }, [selectedEventId]);
+
+  const openEventPriceModal = () => {
+    if (!selectedEvent) return;
+    const current = getEventPricing(selectedEvent);
+    setDraftVoucherPrice(current.voucherPrice ?? 30000);
+    setDraftNoVoucherPrice(current.noVoucherPrice ?? 35000);
+    setDraftPrintPrice(current.printPrice ?? 10000);
+    setDraftSharePerVoucher(selectedEvent.share_per_voucher || 0);
+    setIsEventPriceModalOpen(true);
+  };
+
+  const handleSaveEventPriceModal = async (e) => {
+    e.preventDefault();
+    if (!selectedEvent) return;
+    const vPrice = Math.max(0, parseInt(draftVoucherPrice, 10) || 0);
+    const nvPrice = Math.max(0, parseInt(draftNoVoucherPrice, 10) || 0);
+    const pPrice = Math.max(0, parseInt(draftPrintPrice, 10) || 0);
+    const shareVal = Math.max(0, parseInt(draftSharePerVoucher, 10) || 0);
+
+    const pricingObj = { voucherPrice: vPrice, noVoucherPrice: nvPrice, printPrice: pPrice };
+    setEventPricing(pricingObj);
+    localStorage.setItem(`snaphub_event_pricing_${selectedEvent.id}`, JSON.stringify(pricingObj));
+
+    // Simpan ke cloud settings bila admin sedang login
+    supabase
+      .from('settings')
+      .upsert({
+        key: `event_pricing_${selectedEvent.id}`,
+        value: JSON.stringify(pricingObj)
+      })
+      .then(() => {})
+      .catch(() => {});
+
+    // Update kolom tabel financial_events jika sudah dimigrasi
+    setShareDraft(String(shareVal));
+    const fullPatch = {
+      share_per_voucher: shareVal,
+      voucher_price: vPrice,
+      no_voucher_price: nvPrice,
+      print_price: pPrice
+    };
+    const ok = await updateEvent(selectedEvent.id, fullPatch, null);
+    if (!ok) {
+      // Fallback jika kolom voucher_price belum dibuat di Supabase
+      await updateEvent(selectedEvent.id, { share_per_voucher: shareVal }, 'Gagal menyimpan sharing profit event');
+    }
+    syncSharing(selectedEvent.id);
+
+    toast.success(`Harga & Sharing untuk "${selectedEvent.name}" berhasil disimpan!`);
+    setIsEventPriceModalOpen(false);
+  };
 
   useEffect(() => {
     eventsRef.current = events;
@@ -467,13 +574,26 @@ const SesiFoto = () => {
               <p className="text-[var(--admin-text-muted)] text-xs mt-0.5">Catatan internal — tidak tampil di website</p>
             </div>
           </div>
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="shrink-0 border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors p-2 rounded-lg hover:bg-[var(--admin-hover-bg)]"
-            title={theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
-          >
-            {theme === 'dark' ? <FiMoon size={16} /> : <FiSun size={16} />}
-          </button>
+          <div className="flex items-center gap-2">
+            {selectedEvent && (
+              <button
+                type="button"
+                onClick={openEventPriceModal}
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[var(--admin-border)] bg-[var(--admin-surface)] hover:bg-[var(--admin-hover-bg)] hover:border-[#D90429]/40 text-xs font-bold text-[var(--admin-text-main)] shadow-sm transition-all cursor-pointer"
+                title="Atur Harga & Sharing Profit Event Ini"
+              >
+                <FiTag size={14} className="text-[#D90429] shrink-0" />
+                <span>Harga & Sharing</span>
+              </button>
+            )}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="shrink-0 border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors p-2 rounded-lg hover:bg-[var(--admin-hover-bg)]"
+              title={theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+            >
+              {theme === 'dark' ? <FiMoon size={16} /> : <FiSun size={16} />}
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -553,7 +673,7 @@ const SesiFoto = () => {
                           </div>
                           <div className="shrink-0 flex items-center gap-2">
                             <span className={`text-sm font-semibold tabular-nums ${(ev.sessions || []).length === 0 ? 'text-[var(--admin-text-muted)] font-normal' : 'text-[var(--admin-text-main)]'}`}>
-                              {formatRp(eventTotal(ev))}
+                              {formatRp(eventTotal(ev, getEventPricing(ev.id)))}
                             </span>
                             <FiChevronRight size={16} className="text-[var(--admin-text-muted)]" />
                           </div>
@@ -610,7 +730,7 @@ const SesiFoto = () => {
                           </button>
                         </div>
                         <p className="text-sm sm:text-base font-bold text-[var(--admin-accent)] mt-1 tabular-nums">
-                          {hideTotal ? 'Rp ••••••' : formatRp(eventTotal(selectedEvent))}
+                          {hideTotal ? 'Rp ••••••' : formatRp(eventTotal(selectedEvent, eventPricing))}
                         </p>
                       </div>
                       <div className="rounded-xl bg-[var(--admin-hover-bg)] px-3 py-3">
@@ -640,49 +760,44 @@ const SesiFoto = () => {
                     </button>
 
                     {sharingOpen && (
-                    <div className="mt-4">
-                    <label className="block text-xs text-[var(--admin-text-muted)] mb-2">Kesepakatan per voucher terpakai</label>
-                    <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] px-3">
-                      <span className="text-sm text-[var(--admin-text-muted)]">Rp</span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
-                        step="500"
-                        value={shareDraft}
-                        onChange={(e) => setShareDraft(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && saveShare()}
-                        className="flex-1 min-w-0 bg-transparent py-3 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      />
-                      <button
-                        onClick={saveShare}
-                        disabled={!shareDirty}
-                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 my-1.5 rounded-lg bg-[var(--admin-accent)] text-white text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <FiSave size={12} /> Simpan
-                      </button>
-                    </div>
-
+                    <div className="mt-4 space-y-4">
                     {(() => {
                       const vouchers = voucherCount(selectedEvent);
                       const sharing = eventSharing(selectedEvent);
-                      const profit = eventTotal(selectedEvent) - sharing;
+                      const profit = eventTotal(selectedEvent, eventPricing) - sharing;
                       const isLoss = profit < 0;
                       return (
-                        <div className="grid grid-cols-2 gap-3 mt-4">
-                          <div className="rounded-xl bg-[var(--admin-hover-bg)] px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-wide text-[var(--admin-text-muted)]">Sharing customer</p>
-                            <p className="text-sm sm:text-base font-bold text-[var(--admin-text-main)] mt-1 tabular-nums">{formatRp(sharing)}</p>
-                            <p className="text-[11px] text-[var(--admin-text-muted)] mt-0.5">{vouchers} voucher</p>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--admin-hover-bg)] text-xs">
+                            <span className="text-[var(--admin-text-muted)]">Kesepakatan MoU:</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[var(--admin-text-main)] tabular-nums">
+                                {formatRp(selectedEvent.share_per_voucher || 0)} / voucher
+                              </span>
+                              <button
+                                type="button"
+                                onClick={openEventPriceModal}
+                                className="text-[11px] text-[#D90429] hover:underline font-semibold cursor-pointer"
+                              >
+                                (Ubah)
+                              </button>
+                            </div>
                           </div>
-                          <div className={`rounded-xl px-3 py-3 ${isLoss ? 'bg-red-500/10' : 'bg-green-500/10'}`}>
-                            <p className="text-[11px] uppercase tracking-wide text-[var(--admin-text-muted)]">
-                              Estimasi {isLoss ? 'rugi' : 'untung'}
-                            </p>
-                            <p className={`text-sm sm:text-base font-bold mt-1 tabular-nums ${isLoss ? 'text-red-500' : 'text-green-500'}`}>
-                              {isLoss ? '-' : ''}{formatRp(Math.abs(profit))}
-                            </p>
-                            <p className="text-[11px] text-[var(--admin-text-muted)] mt-0.5">Total − sharing</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl bg-[var(--admin-hover-bg)] px-3 py-3">
+                              <p className="text-[11px] uppercase tracking-wide text-[var(--admin-text-muted)]">Sharing customer</p>
+                              <p className="text-sm sm:text-base font-bold text-[var(--admin-text-main)] mt-1 tabular-nums">{formatRp(sharing)}</p>
+                              <p className="text-[11px] text-[var(--admin-text-muted)] mt-0.5">{vouchers} voucher</p>
+                            </div>
+                            <div className={`rounded-xl px-3 py-3 ${isLoss ? 'bg-red-500/10' : 'bg-green-500/10'}`}>
+                              <p className="text-[11px] uppercase tracking-wide text-[var(--admin-text-muted)]">
+                                Estimasi {isLoss ? 'rugi' : 'untung'}
+                              </p>
+                              <p className={`text-sm sm:text-base font-bold mt-1 tabular-nums ${isLoss ? 'text-red-500' : 'text-green-500'}`}>
+                                {isLoss ? '-' : ''}{formatRp(Math.abs(profit))}
+                              </p>
+                              <p className="text-[11px] text-[var(--admin-text-muted)] mt-0.5">Total − sharing</p>
+                            </div>
                           </div>
                         </div>
                       );
@@ -794,8 +909,8 @@ const SesiFoto = () => {
                         <p className="text-xs text-[var(--admin-text-muted)] mb-2">Tipe</p>
                         <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[var(--admin-hover-bg)]">
                           {[
-                            { value: false, label: 'Voucher', price: VOUCHER_PRICE },
-                            { value: true, label: 'Non-voucher', price: NO_VOUCHER_PRICE },
+                            { value: false, label: 'Voucher', price: eventPricing.voucherPrice },
+                            { value: true, label: 'Non-voucher', price: eventPricing.noVoucherPrice },
                           ].map((opt) => (
                             <button
                               key={opt.label}
@@ -815,7 +930,7 @@ const SesiFoto = () => {
                       </div>
 
                       <div>
-                        <p className="text-xs text-[var(--admin-text-muted)] mb-2">Print (+{formatRp(PRINT_PRICE)}/print)</p>
+                        <p className="text-xs text-[var(--admin-text-muted)] mb-2">Print (+{formatRp(eventPricing.printPrice)}/print)</p>
                         <div className="flex items-center justify-between rounded-xl bg-[var(--admin-hover-bg)] p-1">
                           <button
                             type="button"
@@ -840,7 +955,7 @@ const SesiFoto = () => {
                       <div>
                         <p className="text-[11px] uppercase tracking-wide text-[var(--admin-text-muted)]">Harga sesi</p>
                         <p className="text-lg font-bold text-[var(--admin-accent)] tabular-nums">
-                          {formatRp((noVoucher ? NO_VOUCHER_PRICE : VOUCHER_PRICE) + (Number(prints) || 0) * PRINT_PRICE)}
+                          {formatRp((noVoucher ? eventPricing.noVoucherPrice : eventPricing.voucherPrice) + (Number(prints) || 0) * eventPricing.printPrice)}
                         </p>
                       </div>
                       <button onClick={handleAddSession} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-1.5">
@@ -890,7 +1005,7 @@ const SesiFoto = () => {
                                 </div>
                               </div>
                               <div className="flex items-center gap-3 shrink-0">
-                                <span className="text-sm font-semibold text-[var(--admin-text-main)] tabular-nums">{formatRp(sessionPrice(s))}</span>
+                                <span className="text-sm font-semibold text-[var(--admin-text-main)] tabular-nums">{formatRp(sessionPrice(s, eventPricing))}</span>
                                 <button
                                   onClick={() => setDeleteModal({ isOpen: true, type: 'session', eventId: selectedEvent.id, sessionId: s.id })}
                                   className="hidden sm:block p-1.5 rounded-md text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
@@ -940,6 +1055,163 @@ const SesiFoto = () => {
                 Ya, Hapus
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* POP UP PENGATURAN TARIF MOU EVENT */}
+      {isEventPriceModalOpen && selectedEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl relative space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#D90429]/15 text-[#D90429] flex items-center justify-center text-sm font-bold">
+                  <FiTag />
+                </div>
+                <div className="min-w-0 pr-2">
+                  <h3 className="text-base font-bold text-[var(--admin-text-main)] font-heading leading-tight truncate">
+                    Harga & Sharing
+                  </h3>
+                  <p className="text-xs text-[#D90429] font-medium mt-0.5 truncate">
+                    {selectedEvent.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEventPriceModalOpen(false)}
+                className="p-2 rounded-xl text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer shrink-0"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-[var(--admin-text-muted)]">
+              Perubahan tarif dan sharing profit di sini hanya berlaku untuk <strong>{selectedEvent.name}</strong> dan tidak mempengaruhi event lain.
+            </p>
+
+            <form onSubmit={handleSaveEventPriceModal} className="space-y-4">
+              {/* Harga Sesi Voucher */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
+                  Harga Sesi (Voucher)
+                </label>
+                <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
+                  <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={draftVoucherPrice}
+                    onChange={(e) => setDraftVoucherPrice(e.target.value)}
+                    className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
+                    placeholder="30000"
+                    required
+                  />
+                </div>
+                <span className="text-[10.5px] text-[var(--admin-text-muted)] mt-1 block">
+                  Tarif dasar per sesi untuk tamu yang memakai kupon/voucher.
+                </span>
+              </div>
+
+              {/* Harga Sesi Non-Voucher */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
+                  Harga Sesi (Non-Voucher / Reguler)
+                </label>
+                <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
+                  <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={draftNoVoucherPrice}
+                    onChange={(e) => setDraftNoVoucherPrice(e.target.value)}
+                    className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
+                    placeholder="35000"
+                    required
+                  />
+                </div>
+                <span className="text-[10.5px] text-[var(--admin-text-muted)] mt-1 block">
+                  Tarif untuk tamu umum tanpa kupon/voucher.
+                </span>
+              </div>
+
+              {/* Harga Print Tambahan */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
+                  Harga Print Tambahan (per Lembar)
+                </label>
+                <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
+                  <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={draftPrintPrice}
+                    onChange={(e) => setDraftPrintPrice(e.target.value)}
+                    className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
+                    placeholder="10000"
+                    required
+                  />
+                </div>
+                <span className="text-[10.5px] text-[var(--admin-text-muted)] mt-1 block">
+                  Biaya tambahan jika tamu meminta cetak ekstra lembar foto.
+                </span>
+              </div>
+
+              {/* Harga Sharing Profit per Voucher */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
+                  Sharing Profit per Voucher
+                </label>
+                <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
+                  <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={draftSharePerVoucher}
+                    onChange={(e) => setDraftSharePerVoucher(e.target.value)}
+                    className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
+                    placeholder="0"
+                  />
+                </div>
+                <span className="text-[10.5px] text-[var(--admin-text-muted)] mt-1 block">
+                  Nominal bagi hasil per voucher dengan pihak penyelenggara event ini.
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[var(--admin-border)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftVoucherPrice(30000);
+                    setDraftNoVoucherPrice(35000);
+                    setDraftPrintPrice(10000);
+                    setDraftSharePerVoucher(0);
+                  }}
+                  className="text-xs text-[var(--admin-text-muted)] hover:text-white transition-colors cursor-pointer"
+                >
+                  Reset Standar
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEventPriceModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-[var(--admin-border)] text-xs font-semibold text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs font-bold transition-all shadow-md shadow-[#D90429]/25 cursor-pointer"
+                  >
+                    Simpan Pengaturan
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

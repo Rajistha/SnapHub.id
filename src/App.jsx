@@ -9,6 +9,9 @@ const LiveSesi = lazy(() => import('./pages/LiveSesi'));
 const CrewSesi = lazy(() => import('./pages/CrewSesi'));
 const Linktree = lazy(() => import('./pages/Linktree'));
 const ManageLinks = lazy(() => import('./pages/ManageLinks'));
+const QueueGuest = lazy(() => import('./pages/QueueGuest'));
+const QueueDisplay = lazy(() => import('./pages/QueueDisplay'));
+const QueueAdmin = lazy(() => import('./pages/QueueAdmin'));
 import ErrorBoundary from './components/ErrorBoundary';
 
 const PageLoader = () => (
@@ -33,6 +36,12 @@ const isAppSubdomain = typeof window !== 'undefined' && (
 const isLiveSubdomain = typeof window !== 'undefined' && (
   window.location.hostname === 'live.snaphub.my.id' ||
   window.location.hostname.startsWith('live.')
+);
+
+// Deteksi apakah sedang diakses dari subdomain queue (e.g. queue.snaphub.my.id)
+const isQueueSubdomain = typeof window !== 'undefined' && (
+  window.location.hostname === 'queue.snaphub.my.id' ||
+  window.location.hostname.startsWith('queue.')
 );
 
 // Scroll ke elemen #hash saat navigasi (fix React Router tidak handle hash anchor)
@@ -67,7 +76,18 @@ function App() {
       <ScrollToHash />
       <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* 1. Subdomain live.snaphub.my.id: customer live view tanpa /live */}
+        {/* 1. Subdomain queue.snaphub.my.id: tiket tamu & TV display booth */}
+        {isQueueSubdomain && (
+          <>
+            <Route path="/:slug/display" element={<QueueDisplay />} />
+            <Route path="/display" element={<QueueDisplay />} />
+            <Route path="/:slug" element={<QueueGuest />} />
+            <Route path="/" element={<QueueGuest />} />
+            <Route path="*" element={<QueueGuest />} />
+          </>
+        )}
+
+        {/* 2. Subdomain live.snaphub.my.id: customer live view tanpa /live */}
         {isLiveSubdomain && (
           <>
             <Route path="/:slug" element={<LiveSesi />} />
@@ -77,7 +97,7 @@ function App() {
           </>
         )}
 
-        {/* 2. Subdomain link.snaphub.my.id: Bio / Linktree publik untuk pengunjung */}
+        {/* 3. Subdomain link.snaphub.my.id: Bio / Linktree publik untuk pengunjung */}
         {isLinkSubdomain && (
           <>
             <Route path="/" element={<Linktree />} />
@@ -85,9 +105,10 @@ function App() {
           </>
         )}
 
-        {/* 3. Subdomain app.snaphub.my.id: Aplikasi internal (Kelola Link & Sesi Foto) */}
+        {/* 4. Subdomain app.snaphub.my.id: Aplikasi internal (Kelola Link, Sesi Foto, & Antrian) */}
         {isAppSubdomain && (
           <>
+            <Route path="/queue" element={<QueueAdmin />} />
             <Route path="/links" element={<ManageLinks />} />
             <Route path="/admin/links" element={<ManageLinks />} />
             <Route path="/kelola" element={<ManageLinks />} />
@@ -101,10 +122,13 @@ function App() {
           </>
         )}
 
-        {/* 4. Domain Utama snaphub.my.id & Localhost */}
+        {/* 5. Domain Utama snaphub.my.id & Localhost */}
         <Route path="/" element={<Home />} />
         <Route path="/admin/*" element={<Admin />} />
         <Route path="/admin/links" element={<ManageLinks />} />
+        <Route path="/queue/:slug/display" element={<QueueDisplay />} />
+        <Route path="/queue/:slug" element={<QueueGuest />} />
+        <Route path="/queue" element={<QueueAdmin />} />
         <Route path="/links" element={<Linktree />} />
         <Route path="/linktree" element={<Navigate to="/links" replace />} />
         <Route path="/bio" element={<Navigate to="/links" replace />} />
