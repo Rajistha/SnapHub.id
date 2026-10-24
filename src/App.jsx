@@ -7,6 +7,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const SesiFoto = lazy(() => import('./pages/SesiFoto'));
 const LiveSesi = lazy(() => import('./pages/LiveSesi'));
 const CrewSesi = lazy(() => import('./pages/CrewSesi'));
+const Linktree = lazy(() => import('./pages/Linktree'));
 import ErrorBoundary from './components/ErrorBoundary';
 
 const PageLoader = () => (
@@ -15,18 +16,30 @@ const PageLoader = () => (
   </div>
 );
 
+// Deteksi apakah sedang diakses dari subdomain link (e.g. link.snaphub.my.id)
+const isLinkSubdomain = typeof window !== 'undefined' && (
+  window.location.hostname === 'link.snaphub.my.id' ||
+  window.location.hostname.startsWith('link.')
+);
+
 function App() {
   return (
     <Router>
       <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* Jika diakses via link.snaphub.my.id, root ('/') langsung membuka halaman Linktree */}
+        <Route path="/" element={isLinkSubdomain ? <Linktree /> : <Home />} />
         <Route path="/admin/*" element={<Admin />} />
+        <Route path="/links" element={<Linktree />} />
+        <Route path="/linktree" element={<Navigate to="/links" replace />} />
+        <Route path="/bio" element={<Navigate to="/links" replace />} />
         <Route path="/sesi" element={<SesiFoto />} />
         <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
         <Route path="/live/:slug" element={<LiveSesi />} />
         <Route path="/crew/:slug" element={<CrewSesi />} />
+        {/* Fallback subdomain: jika ada path tak dikenal di subdomain link, tetap ke Linktree */}
+        {isLinkSubdomain && <Route path="*" element={<Linktree />} />}
       </Routes>
       </Suspense>
       </ErrorBoundary>

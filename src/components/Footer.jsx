@@ -146,6 +146,15 @@ const Footer = () => {
                   </Link>
                 </li>
               ))}
+                <li>
+                  <a
+                    href="/links"
+                    className="text-gray-400 hover:text-[#E79EA7] text-[15px] cursor-pointer transition-colors duration-300 flex items-center gap-2 group"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#D90429] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    Bio Links (Linktree)
+                  </a>
+                </li>
             </ul>
           </div>
 
