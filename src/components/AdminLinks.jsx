@@ -531,77 +531,77 @@ const AdminLinks = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* ── Top Bar: Title & Stats ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-6 rounded-2xl shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-4 sm:p-6 rounded-2xl shadow-sm">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#D90429]/15 text-[#D90429] flex items-center justify-center text-xl font-bold">
+            <div className="w-10 h-10 rounded-xl bg-[#D90429]/15 text-[#D90429] flex items-center justify-center text-xl font-bold shrink-0">
               <FiLink />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-[var(--admin-text-main)] font-heading">
+              <h1 className="text-lg sm:text-xl font-bold text-[var(--admin-text-main)] font-heading">
                 Kelola Linktree & Bio Links
               </h1>
-              <p className="text-xs text-[var(--admin-text-muted)] mt-0.5">
+              <p className="text-xs text-[var(--admin-text-muted)] mt-0.5 line-clamp-2 sm:line-clamp-none">
                 Atur tautan kegiatan, logo sponsor/klien, promo, dan menu profil untuk pengunjung.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-sm font-medium transition-all cursor-pointer"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs sm:text-sm font-medium transition-all cursor-pointer"
           >
-            <FiSettings className="text-[#D90429]" />
-            <span>Pengaturan Bio</span>
+            <FiSettings className="text-[#D90429] shrink-0" size={14} />
+            <span className="truncate">Pengaturan Bio</span>
           </button>
 
           <a
             href="/links"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-sm font-medium transition-all"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs sm:text-sm font-medium transition-all"
           >
-            <FiExternalLink />
-            <span>Buka Halaman Bio</span>
+            <FiExternalLink className="shrink-0" size={14} />
+            <span className="truncate">Buka Bio</span>
           </a>
 
           <button
             onClick={() => openSectionModal()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-sm font-medium transition-all cursor-pointer"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs sm:text-sm font-medium transition-all cursor-pointer"
           >
-            <FiTag className="text-[#D90429]" size={16} />
-            <span>Tambah Section</span>
+            <FiTag className="text-[#D90429] shrink-0" size={14} />
+            <span className="truncate">+ Section</span>
           </button>
 
           <button
             onClick={() => openModal()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-sm font-semibold shadow-lg shadow-[#D90429]/25 transition-all cursor-pointer"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold shadow-lg shadow-[#D90429]/25 transition-all cursor-pointer"
           >
-            <FiPlus size={18} />
-            <span>Tambah Link Baru</span>
+            <FiPlus size={16} className="shrink-0" />
+            <span className="truncate">+ Link Baru</span>
           </button>
         </div>
       </div>
 
       {/* ── Metric Cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-4 rounded-xl">
-          <span className="text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider">Total Link</span>
-          <p className="text-2xl font-bold text-[var(--admin-text-main)] mt-1">{links.length}</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
+          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Total Link</span>
+          <p className="text-xl sm:text-2xl font-bold text-[var(--admin-text-main)] mt-0.5 sm:mt-1">{links.length}</p>
         </div>
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-4 rounded-xl">
-          <span className="text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider">Link Aktif</span>
-          <p className="text-2xl font-bold text-emerald-500 mt-1">{activeCount}</p>
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
+          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Link Aktif</span>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-500 mt-0.5 sm:mt-1">{activeCount}</p>
         </div>
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-4 rounded-xl">
-          <span className="text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider">Total Klik</span>
-          <p className="text-2xl font-bold text-[var(--admin-text-main)] mt-1">{totalClicks.toLocaleString('id-ID')}</p>
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
+          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Total Klik</span>
+          <p className="text-xl sm:text-2xl font-bold text-[var(--admin-text-main)] mt-0.5 sm:mt-1">{totalClicks.toLocaleString('id-ID')}</p>
         </div>
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-4 rounded-xl">
-          <span className="text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider">Client Logos Tersedia</span>
-          <p className="text-2xl font-bold text-amber-500 mt-1">{clientLogos.length}</p>
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
+          <span className="text-[10px] sm:text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block truncate">Client Logos</span>
+          <p className="text-xl sm:text-2xl font-bold text-amber-500 mt-0.5 sm:mt-1">{clientLogos.length}</p>
         </div>
       </div>
 
@@ -845,26 +845,26 @@ const AdminLinks = () => {
       </AnimatePresence>
 
       {/* ── Search & Filter Bar ── */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-4 rounded-xl">
-        <div className="relative w-full sm:w-80">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
+        <div className="relative w-full sm:w-72">
           <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)]" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari link, kegiatan, url..."
-            className="w-full pl-10 pr-4 py-2 bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-lg text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
+            className="w-full pl-10 pr-4 py-2 bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-lg text-xs sm:text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           {LINK_CATEGORIES.map((cat) => (
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
                 categoryFilter === cat
-                  ? 'bg-[#D90429] text-white font-semibold'
+                  ? 'bg-[#D90429] text-white font-semibold shadow-sm'
                   : 'bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:text-white'
               }`}
             >
@@ -881,19 +881,20 @@ const AdminLinks = () => {
           <p className="text-sm text-[var(--admin-text-muted)]">Memuat data linktree...</p>
         </div>
       ) : filteredLinks.length === 0 ? (
-        <div className="bg-[var(--admin-surface)] border border-dashed border-[var(--admin-border)] rounded-2xl p-12 text-center">
-          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 text-[var(--admin-text-muted)]">
-            <FiLink size={28} />
+        <div className="bg-[var(--admin-surface)] border border-dashed border-[var(--admin-border)] rounded-2xl p-8 sm:p-12 text-center">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3 sm:mb-4 text-[var(--admin-text-muted)]">
+            <FiLink size={24} className="sm:hidden" />
+            <FiLink size={28} className="hidden sm:block" />
           </div>
-          <h3 className="text-lg font-bold text-[var(--admin-text-main)]">Belum ada link</h3>
-          <p className="text-sm text-[var(--admin-text-muted)] mt-1 max-w-md mx-auto">
+          <h3 className="text-base sm:text-lg font-bold text-[var(--admin-text-main)]">Belum ada link</h3>
+          <p className="text-xs sm:text-sm text-[var(--admin-text-muted)] mt-1 max-w-md mx-auto">
             {searchQuery
               ? 'Tidak ada link yang sesuai dengan kata kunci pencarian.'
               : 'Tambahkan link kegiatan, event, sponsorship, atau kontak pertama Anda!'}
           </p>
           <button
             onClick={() => openModal()}
-            className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-sm font-semibold cursor-pointer"
+            className="mt-4 sm:mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold cursor-pointer"
           >
             <FiPlus /> Tambah Link Baru
           </button>
@@ -901,9 +902,9 @@ const AdminLinks = () => {
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1 text-xs text-[var(--admin-text-muted)]">
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center gap-1.5 text-[11px] sm:text-xs">
               <span className="text-zinc-400 font-mono text-sm leading-none">⠿</span>
-              <span>Tahan & geser (drag & drop) item untuk mengatur urutan tampilan</span>
+              <span>Tahan & geser untuk atur urutan</span>
             </span>
             <span className="font-mono text-[11px] opacity-70">
               {filteredLinks.length} item
@@ -926,7 +927,7 @@ const AdminLinks = () => {
                   onDragLeave={(e) => handleDragLeave(e, link.id)}
                   onDrop={(e) => handleDrop(e, link.id)}
                   onDragEnd={handleDragEnd}
-                  className={`group bg-[var(--admin-surface)] border border-dashed rounded-xl p-3.5 transition-all flex items-center justify-between gap-3 ${
+                  className={`group bg-[var(--admin-surface)] border border-dashed rounded-xl p-3 sm:p-3.5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 ${
                     isDragging
                       ? 'opacity-30 scale-[0.99] border-[#D90429]'
                       : isOver
@@ -936,9 +937,9 @@ const AdminLinks = () => {
                       : 'border-white/5 opacity-50'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                     <div
-                      className="p-1.5 text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing transition-colors rounded-lg hover:bg-white/5 flex items-center justify-center shrink-0 select-none touch-none"
+                      className="p-1 sm:p-1.5 text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing transition-colors rounded-lg hover:bg-white/5 flex items-center justify-center shrink-0 select-none touch-none"
                       title="Tahan & geser untuk memindahkan urutan"
                       onTouchStart={(e) => handleTouchStart(e, link.id)}
                       onTouchMove={handleTouchMove}
@@ -954,39 +955,39 @@ const AdminLinks = () => {
                       </svg>
                     </div>
 
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${
                       link.sectionType === 'dropdown' ? 'bg-purple-500/15 text-purple-400' : 'bg-[#D90429]/10 text-[#D90429]'
                     }`}>
-                      {link.sectionType === 'dropdown' ? <FiFolder size={14} /> : <FiTag size={14} />}
+                      {link.sectionType === 'dropdown' ? <FiFolder size={13} /> : <FiTag size={13} />}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
                         {link.sectionType === 'dropdown' ? (
-                          <span className="text-[9.5px] font-mono uppercase tracking-wider text-purple-300 bg-purple-500/15 border border-purple-500/25 px-2 py-0.5 rounded flex items-center gap-1">
-                            <FiChevronDown size={10} /> DROPDOWN (BISA BUKA-TUTUP)
+                          <span className="text-[9px] sm:text-[9.5px] font-mono uppercase tracking-wider text-purple-300 bg-purple-500/15 border border-purple-500/25 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <FiChevronDown size={10} /> DROPDOWN
                           </span>
                         ) : (
-                          <span className="text-[9.5px] font-mono uppercase tracking-wider text-[var(--admin-text-muted)] bg-white/5 border border-white/5 px-2 py-0.5 rounded">
-                            HEADER BIASA (STATIS)
+                          <span className="text-[9px] sm:text-[9.5px] font-mono uppercase tracking-wider text-[var(--admin-text-muted)] bg-white/5 border border-white/5 px-1.5 py-0.5 rounded">
+                            HEADER BIASA
                           </span>
                         )}
                         {link.sectionType === 'dropdown' && (
-                          <span className="text-[11px] text-[var(--admin-text-muted)]">
-                            • Default: {link.defaultOpen !== false ? 'Terbuka' : 'Tertutup'}
+                          <span className="text-[10px] sm:text-[11px] text-[var(--admin-text-muted)]">
+                            • Default: {link.defaultOpen !== false ? 'Buka' : 'Tutup'}
                           </span>
                         )}
                       </div>
-                      <h4 className="text-sm font-bold text-[var(--admin-text-main)] truncate mt-0.5 uppercase tracking-wide">
+                      <h4 className="text-xs sm:text-sm font-bold text-[var(--admin-text-main)] truncate mt-0.5 uppercase tracking-wide">
                         {link.title}
                       </h4>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-end gap-1.5 sm:gap-2 self-end sm:self-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-white/5 w-full sm:w-auto">
                     <button
                       onClick={() => toggleActive(link.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                         link.isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-[var(--admin-text-muted)]'
                       }`}
                     >
@@ -997,14 +998,14 @@ const AdminLinks = () => {
                       className="p-1.5 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:bg-[#D90429]/20 hover:text-[#D90429] cursor-pointer"
                       title="Edit Judul Section"
                     >
-                      <FiEdit2 size={14} />
+                      <FiEdit2 size={13} />
                     </button>
                     <button
                       onClick={() => setDeleteConfirmId(link.id)}
                       className="p-1.5 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:bg-red-500/20 hover:text-red-400 cursor-pointer"
                       title="Hapus Section"
                     >
-                      <FiTrash2 size={14} />
+                      <FiTrash2 size={13} />
                     </button>
                   </div>
                 </div>
@@ -1025,7 +1026,7 @@ const AdminLinks = () => {
                 onDragLeave={(e) => handleDragLeave(e, link.id)}
                 onDrop={(e) => handleDrop(e, link.id)}
                 onDragEnd={handleDragEnd}
-                className={`group bg-[var(--admin-surface)] border rounded-2xl p-4 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
+                className={`group bg-[var(--admin-surface)] border rounded-2xl p-3.5 sm:p-4 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 ${
                   isDragging
                     ? 'opacity-30 scale-[0.99] border-[#D90429]'
                     : isOver
@@ -1035,11 +1036,11 @@ const AdminLinks = () => {
                     : 'border-white/5 opacity-60'
                 } ${link.isHighlighted ? 'ring-1 ring-[#D90429]/30 bg-[#D90429]/5' : ''}`}
               >
-                {/* Left: Drag Handle & Thumbnail */}
-                <div className="flex items-center gap-3 w-full md:w-auto">
+                {/* Left: Drag Handle & Thumbnail & Details */}
+                <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 w-full min-w-0">
                   {/* Drag Handle */}
                   <div
-                    className="p-1.5 text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing transition-colors rounded-lg hover:bg-white/5 flex items-center justify-center shrink-0 select-none touch-none"
+                    className="p-1 sm:p-1.5 text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing transition-colors rounded-lg hover:bg-white/5 flex items-center justify-center shrink-0 select-none touch-none mt-1 sm:mt-0"
                     title="Tahan & geser untuk memindahkan urutan"
                     onTouchStart={(e) => handleTouchStart(e, link.id)}
                     onTouchMove={handleTouchMove}
@@ -1056,39 +1057,39 @@ const AdminLinks = () => {
                   </div>
 
                   {/* Thumbnail / Logo Kegiatan */}
-                  <div className="relative w-14 h-14 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
                     {link.logoUrl ? (
                       <img
                         src={link.logoUrl}
                         alt={link.title}
-                        className="w-full h-full object-contain p-1.5"
+                        className="w-full h-full object-contain p-1 sm:p-1.5"
                         onError={(e) => {
                           e.target.style.display = 'none';
                         }}
                       />
                     ) : (
-                      <div className="text-xl text-[#D90429]">
+                      <div className="text-lg sm:text-xl text-[#D90429]">
                         {PRESET_ICONS.find(p => p.id === link.icon)?.icon || <FiLink />}
                       </div>
                     )}
                     {link.isHighlighted && (
-                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#D90429] rounded-full border-2 border-[var(--admin-surface)]" title="Link Unggulan" />
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D90429] rounded-full border-2 border-[var(--admin-surface)]" title="Link Unggulan" />
                     )}
                   </div>
 
                   {/* Content Details */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-bold text-[var(--admin-text-main)] text-sm md:text-base truncate">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h4 className="font-bold text-[var(--admin-text-main)] text-sm sm:text-base truncate">
                         {link.title}
                       </h4>
                       {link.badge && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/10 text-[var(--admin-text-main)] border border-white/10">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white/10 text-[var(--admin-text-main)] border border-white/10">
                           {link.badge}
                         </span>
                       )}
                       {link.category && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] bg-white/5 text-[var(--admin-text-muted)] border border-white/5">
+                        <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-white/5 text-[var(--admin-text-muted)] border border-white/5">
                           {link.category}
                         </span>
                       )}
@@ -1100,61 +1101,63 @@ const AdminLinks = () => {
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 mt-1 text-xs text-[var(--admin-text-muted)]">
+                    <div className="flex items-center gap-2 mt-0.5 sm:mt-1 text-xs text-[var(--admin-text-muted)]">
                       <a
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:text-[#D90429] transition-colors truncate max-w-[200px] sm:max-w-xs flex items-center gap-1 font-mono text-[11px]"
+                        className="hover:text-[#D90429] transition-colors truncate max-w-[180px] sm:max-w-xs flex items-center gap-1 font-mono text-[10.5px] sm:text-[11px]"
                       >
-                        {link.url} <FiExternalLink size={10} />
+                        {link.url} <FiExternalLink size={10} className="shrink-0" />
                       </a>
                     </div>
                   </div>
                 </div>
 
                 {/* Right: Stats & Action Buttons */}
-                <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+                <div className="flex items-center justify-between md:justify-end gap-2 sm:gap-3 w-full md:w-auto pt-2.5 md:pt-0 border-t md:border-t-0 border-[var(--admin-border)]">
                   {/* Click Badge */}
                   <div
                     onClick={() => resetClicks(link.id)}
                     title="Klik untuk reset jumlah klik"
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 text-xs text-[var(--admin-text-muted)] hover:text-white cursor-pointer"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/5 text-[11px] sm:text-xs text-[var(--admin-text-muted)] hover:text-white cursor-pointer shrink-0"
                   >
                     <span>{link.clicks || 0} klik</span>
-                    <FiRefreshCw size={10} className="opacity-60" />
+                    <FiRefreshCw size={9} className="opacity-60" />
                   </div>
 
-                  {/* Active Toggle Button */}
-                  <button
-                    onClick={() => toggleActive(link.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      link.isActive
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-white/5 text-[var(--admin-text-muted)] border border-white/10'
-                    }`}
-                  >
-                    {link.isActive ? <FiEye size={12} /> : <FiEyeOff size={12} />}
-                    <span>{link.isActive ? 'Aktif' : 'Nonaktif'}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* Active Toggle Button */}
+                    <button
+                      onClick={() => toggleActive(link.id)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        link.isActive
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-white/5 text-[var(--admin-text-muted)] border border-white/10'
+                      }`}
+                    >
+                      {link.isActive ? <FiEye size={12} /> : <FiEyeOff size={12} />}
+                      <span className="hidden xs:inline">{link.isActive ? 'Aktif' : 'Nonaktif'}</span>
+                    </button>
 
-                  {/* Edit Button */}
-                  <button
-                    onClick={() => openModal(link)}
-                    className="p-2 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:bg-[#D90429]/20 hover:text-[#D90429] transition-colors cursor-pointer"
-                    title="Edit link"
-                  >
-                    <FiEdit2 size={16} />
-                  </button>
+                    {/* Edit Button */}
+                    <button
+                      onClick={() => openModal(link)}
+                      className="p-1.5 sm:p-2 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:bg-[#D90429]/20 hover:text-[#D90429] transition-colors cursor-pointer"
+                      title="Edit link"
+                    >
+                      <FiEdit2 size={14} />
+                    </button>
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => setDeleteConfirmId(link.id)}
-                    className="p-2 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:bg-red-500/20 hover:text-red-400 transition-colors cursor-pointer"
-                    title="Hapus link"
-                  >
-                    <FiTrash2 size={16} />
-                  </button>
+                    {/* Delete Button */}
+                    <button
+                      onClick={() => setDeleteConfirmId(link.id)}
+                      className="p-1.5 sm:p-2 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:bg-red-500/20 hover:text-red-400 transition-colors cursor-pointer"
+                      title="Hapus link"
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -1191,12 +1194,12 @@ const AdminLinks = () => {
       {/* ── Add / Edit Link Modal ── */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 relative my-8"
+              className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl p-4 sm:p-6 relative my-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between pb-4 border-b border-[var(--admin-border)]">
@@ -1291,22 +1294,22 @@ const AdminLinks = () => {
                   </div>
 
                   {/* Logo Source Tabs */}
-                  <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-black/20 p-1.5 rounded-xl border border-white/5">
                     <button
                       type="button"
                       onClick={() => setLogoTab('client_logo')}
-                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
                         logoTab === 'client_logo'
                           ? 'bg-[#D90429] text-white font-semibold shadow-sm'
                           : 'text-[var(--admin-text-muted)] hover:text-white'
                       }`}
                     >
-                      Pilih Client Logo ({clientLogos.length})
+                      Client Logo ({clientLogos.length})
                     </button>
                     <button
                       type="button"
                       onClick={() => setLogoTab('upload')}
-                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
                         logoTab === 'upload'
                           ? 'bg-[#D90429] text-white font-semibold shadow-sm'
                           : 'text-[var(--admin-text-muted)] hover:text-white'
@@ -1317,7 +1320,7 @@ const AdminLinks = () => {
                     <button
                       type="button"
                       onClick={() => setLogoTab('url')}
-                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
                         logoTab === 'url'
                           ? 'bg-[#D90429] text-white font-semibold shadow-sm'
                           : 'text-[var(--admin-text-muted)] hover:text-white'
@@ -1328,7 +1331,7 @@ const AdminLinks = () => {
                     <button
                       type="button"
                       onClick={() => setLogoTab('icon')}
-                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
                         logoTab === 'icon'
                           ? 'bg-[#D90429] text-white font-semibold shadow-sm'
                           : 'text-[var(--admin-text-muted)] hover:text-white'
@@ -1444,7 +1447,7 @@ const AdminLinks = () => {
 
                   {/* Tab 4: Preset Icon */}
                   {logoTab === 'icon' && (
-                    <div className="grid grid-cols-4 gap-2 pt-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                       {PRESET_ICONS.map((item) => (
                         <button
                           type="button"
@@ -1546,17 +1549,17 @@ const AdminLinks = () => {
                 </div>
 
                 {/* Submit Buttons */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-[var(--admin-border)]">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-4 border-t border-[var(--admin-border)]">
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="px-4 py-2.5 rounded-xl border border-[var(--admin-border)] text-sm font-medium hover:bg-white/5 cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[var(--admin-border)] text-xs sm:text-sm font-medium hover:bg-white/5 cursor-pointer text-center"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-sm font-semibold shadow-lg shadow-[#D90429]/25 cursor-pointer"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold shadow-lg shadow-[#D90429]/25 cursor-pointer text-center"
                   >
                     {editingLink ? 'Simpan Perubahan' : 'Tambahkan Link'}
                   </button>
@@ -1570,12 +1573,12 @@ const AdminLinks = () => {
       {/* ── Section / Header Modal ── */}
       <AnimatePresence>
         {isSectionModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-lg w-full shadow-2xl p-6 relative"
+              className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl p-4 sm:p-6 relative my-auto"
             >
               <div className="flex items-center justify-between pb-3 border-b border-[var(--admin-border)]">
                 <h3 className="text-base font-bold text-[var(--admin-text-main)]">
@@ -1684,17 +1687,17 @@ const AdminLinks = () => {
                 </div>
 
                 {/* Submit Buttons */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-[var(--admin-border)]">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-4 border-t border-[var(--admin-border)]">
                   <button
                     type="button"
                     onClick={closeSectionModal}
-                    className="px-4 py-2 rounded-xl border border-[var(--admin-border)] text-sm font-medium hover:bg-white/5 cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[var(--admin-border)] text-xs sm:text-sm font-medium hover:bg-white/5 cursor-pointer text-center"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-sm font-semibold shadow-md shadow-[#D90429]/20 cursor-pointer"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold shadow-md shadow-[#D90429]/20 cursor-pointer text-center"
                   >
                     {editingSection ? 'Simpan Section' : 'Tambahkan Section'}
                   </button>

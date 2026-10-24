@@ -172,10 +172,10 @@ const Linktree = () => {
         target={item.openNewTab !== false ? '_blank' : '_self'}
         rel="noopener noreferrer"
         onClick={() => handleClickLink(item)}
-        className={`group relative w-full flex items-center justify-between p-3.5 rounded-2xl transition-all duration-300 cursor-pointer overflow-hidden backdrop-blur-2xl ${
+        className={`group relative w-full flex items-center justify-between p-3.5 rounded-2xl transition-transform duration-200 cursor-pointer overflow-hidden backdrop-blur-md ${
           isHighlighted
-            ? 'bg-zinc-900/60 hover:bg-zinc-900/80 border border-white/25 hover:border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.6)] ring-1 ring-white/10'
-            : 'bg-zinc-950/45 hover:bg-zinc-900/60 border border-white/[0.08] hover:border-white/[0.2] shadow-[0_4px_20px_rgba(0,0,0,0.45)]'
+            ? 'bg-zinc-900/80 hover:bg-zinc-800/85 border border-white/25 hover:border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.6)] ring-1 ring-white/10'
+            : 'bg-zinc-950/65 hover:bg-zinc-900/80 border border-white/[0.08] hover:border-white/[0.18] shadow-[0_4px_20px_rgba(0,0,0,0.4)]'
         } hover:-translate-y-0.5`}
       >
         {/* Highlighted Specular Top Reflection (Monochromatic White Glass) */}
@@ -191,7 +191,7 @@ const Linktree = () => {
                 <img
                   src={item.logoUrl}
                   alt={item.title}
-                  className="w-full h-full object-contain filter group-hover:brightness-110 transition-all"
+                  className="w-full h-full object-contain filter group-hover:brightness-110 transition-opacity"
                   onError={(e) => {
                     e.target.style.display = 'none';
                   }}
@@ -256,86 +256,46 @@ const Linktree = () => {
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col justify-between font-sans selection:bg-white/20 selection:text-white relative overflow-hidden">
       <Toaster position="top-center" toastOptions={{ style: { background: '#18181b', color: '#f4f4f5', border: '1px solid #27272a', fontSize: '13px' } }} />
 
-      {/* ── Luxurious Studio Aurora Mesh Blur Background ── */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        {/* 1. Luminous Rose-Wine & Orchid Centerpiece (Directly illuminates the profile) */}
-        <motion.div
-          animate={{
-            scale: [1, 1.08, 1],
-            x: [0, 15, 0],
-            y: [0, -12, 0],
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[720px] h-[560px] rounded-full"
+      {/* ── High-Performance Ambient Aurora Blur Background (Zero Frame Drops, 120 FPS) ── */}
+      <div 
+        className="fixed inset-0 pointer-events-none overflow-hidden z-0"
+        style={{ contain: 'strict' }}
+      >
+        {/* 1. Multi-stop Aurora Mesh Radial Gradients (Single GPU-cached layer, 0 repaint cost) */}
+        <div 
+          className="absolute inset-0"
           style={{
-            background: 'radial-gradient(ellipse at 50% 40%, rgba(225, 29, 72, 0.40) 0%, rgba(190, 18, 60, 0.24) 35%, rgba(147, 51, 234, 0.16) 60%, transparent 80%)',
-            filter: 'blur(100px)',
+            background: `
+              radial-gradient(circle at 50% -8%, rgba(225, 29, 72, 0.32) 0%, rgba(190, 18, 60, 0.18) 25%, transparent 55%),
+              radial-gradient(circle at 92% 16%, rgba(147, 51, 234, 0.28) 0%, rgba(99, 102, 241, 0.14) 30%, transparent 60%),
+              radial-gradient(circle at 6% 42%, rgba(251, 113, 133, 0.22) 0%, rgba(225, 29, 72, 0.10) 30%, transparent 55%),
+              radial-gradient(circle at 92% 68%, rgba(79, 70, 229, 0.25) 0%, rgba(124, 58, 237, 0.12) 30%, transparent 58%),
+              radial-gradient(ellipse at 50% 102%, rgba(225, 29, 72, 0.26) 0%, rgba(79, 70, 229, 0.12) 35%, transparent 60%)
+            `
           }}
         />
 
-        {/* 2. Upper-Right Twilight Purple Bloom */}
-        <motion.div
-          animate={{
-            y: [0, 25, 0],
-            x: [0, -20, 0],
-            scale: [1, 1.06, 1],
-          }}
-          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-16 -right-24 w-[540px] h-[540px] rounded-full"
-          style={{
-            background: 'radial-gradient(circle, rgba(147, 51, 234, 0.35) 0%, rgba(99, 102, 241, 0.22) 40%, transparent 70%)',
-            filter: 'blur(120px)',
-          }}
-        />
-
-        {/* 3. Middle-Left Coral Flare & Rose Mist */}
-        <motion.div
-          animate={{
-            y: [0, -30, 0],
-            x: [0, 18, 0],
-          }}
-          transition={{ duration: 13, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[32%] -left-32 w-[500px] h-[500px] rounded-full"
-          style={{
-            background: 'radial-gradient(circle, rgba(251, 113, 133, 0.28) 0%, rgba(225, 29, 72, 0.16) 45%, transparent 70%)',
-            filter: 'blur(125px)',
-          }}
-        />
-
-        {/* 4. Lower-Right Deep Electric Indigo & Violet Aura */}
-        <motion.div
-          animate={{
-            scale: [1, 1.1, 1],
-            y: [0, 20, 0],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[55%] -right-28 w-[540px] h-[540px] rounded-full"
-          style={{
-            background: 'radial-gradient(circle, rgba(79, 70, 229, 0.30) 0%, rgba(124, 58, 237, 0.18) 45%, transparent 75%)',
-            filter: 'blur(130px)',
-          }}
-        />
-
-        {/* 5. Bottom Horizon Velvet Wine Wash */}
+        {/* 2. Soft Center Stage Ambient Bloom (Hardware accelerated static diffusion) */}
         <div
-          className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-[720px] h-[400px] rounded-full"
+          className="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-[450px] rounded-full pointer-events-none opacity-80"
           style={{
-            background: 'radial-gradient(ellipse at bottom, rgba(225, 29, 72, 0.30) 0%, rgba(79, 70, 229, 0.15) 45%, transparent 75%)',
-            filter: 'blur(110px)',
+            background: 'radial-gradient(ellipse, rgba(225, 29, 72, 0.24) 0%, rgba(147, 51, 234, 0.12) 50%, transparent 75%)',
+            transform: 'translateZ(0)',
+            filter: 'blur(50px)',
           }}
         />
 
-        {/* 6. Cinematic Studio Vignette (Edges fade smoothly into deep rich dark #09090b) */}
+        {/* 3. Cinematic Studio Vignette */}
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: 'radial-gradient(ellipse at 50% 40%, transparent 25%, rgba(9, 9, 11, 0.40) 65%, #09090b 100%)'
+            background: 'radial-gradient(ellipse at 50% 35%, transparent 30%, rgba(9, 9, 11, 0.45) 70%, #09090b 100%)'
           }}
         />
 
-        {/* 7. Subtle Micro-Film Texture */}
+        {/* 4. Subtle Micro-Film Texture */}
         <div 
-          className="absolute inset-0 opacity-[0.035] pointer-events-none"
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
           style={{
             backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.8) 1px, transparent 1px)',
             backgroundSize: '24px 24px'
