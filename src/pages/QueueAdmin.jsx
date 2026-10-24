@@ -118,30 +118,57 @@ const QueueAdmin = () => {
 
   const selectedEvent = events.find(e => e.id === selectedEventId) || null;
 
-  // Realtime Queues Subscription
+  // Pastikan event memiliki token live/antrian
+  useEffect(() => {
+    if (selectedEvent && !selectedEvent.share_token) {
+      const newToken = crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+      supabase
+        .from('financial_events')
+        .update({ share_token: newToken })
+        .eq('id', selectedEvent.id)
+        .then(() => {
+          setEvents(prev => prev.map(e => e.id === selectedEvent.id ? { ...e, share_token: newToken } : e));
+        });
+    }
+  }, [selectedEvent?.id, selectedEvent?.share_token]);
+
+  // Realtime Queues Subscription & Auto Refresh
   useEffect(() => {
     if (!selectedEventId) return;
 
-    fetchQueues(selectedEventId);
+    fetchQueues(selectedEventId, true);
 
+    // 1. Polling fallback setiap 3 detik agar pasti selalu update otomatis
+    const timer = setInterval(() => {
+      fetchQueues(selectedEventId, false);
+    }, 3000);
+
+    // 2. Realtime Supabase Channel
     const channel = supabase
       .channel(`admin_queue_${selectedEventId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'event_queues', filter: `event_id=eq.${selectedEventId}` },
-        () => {
-          fetchQueues(selectedEventId);
+        { event: '*', schema: 'public', table: 'event_queues' },
+        (payload) => {
+          if (
+            !payload.new ||
+            String(payload.new.event_id) === String(selectedEventId) ||
+            String(payload.old?.event_id) === String(selectedEventId)
+          ) {
+            fetchQueues(selectedEventId, false);
+          }
         }
       )
       .subscribe();
 
     return () => {
+      clearInterval(timer);
       supabase.removeChannel(channel);
     };
   }, [selectedEventId]);
 
-  const fetchQueues = async (eventId) => {
-    setLoadingQueues(true);
+  const fetchQueues = async (eventId, showLoading = true) => {
+    if (showLoading) setLoadingQueues(true);
     try {
       const { data, error } = await supabase
         .from('event_queues')
@@ -154,7 +181,7 @@ const QueueAdmin = () => {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoadingQueues(false);
+      if (showLoading) setLoadingQueues(false);
     }
   };
 
@@ -301,11 +328,12 @@ const QueueAdmin = () => {
   };
 
   // URLs
-  const guestUrl = selectedEvent
-    ? `https://queue.snaphub.my.id/${slugify(selectedEvent.name)}-${selectedEvent.share_token}`
+  const guestToken = selectedEvent?.share_token || selectedEvent?.id || '';
+  const guestUrl = selectedEvent && guestToken
+    ? `https://queue.snaphub.my.id/${slugify(selectedEvent.name)}-${guestToken}`
     : '';
-  const displayUrl = selectedEvent
-    ? `https://queue.snaphub.my.id/${slugify(selectedEvent.name)}-${selectedEvent.share_token}/display`
+  const displayUrl = selectedEvent && guestToken
+    ? `https://queue.snaphub.my.id/${slugify(selectedEvent.name)}-${guestToken}/display`
     : '';
 
   const activeServing = queues.find(q => q.status === 'called' || q.status === 'serving');

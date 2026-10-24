@@ -1,6 +1,10 @@
--- Jalankan di Supabase SQL Editor.
--- Migrasi Sistem Antrian Cerdas SnapHub (Smart Queue System)
+-- ============================================================================
+-- SnapHub — Migrasi Sistem Antrian Cerdas (Smart Queue System)
+-- Jalankan di SQL Editor Supabase.
+-- Aman dijalankan ulang (idempotent).
+-- ============================================================================
 
+-- 1. Tabel antrian tamu per event
 create table if not exists public.event_queues (
   id uuid primary key default gen_random_uuid(),
   event_id bigint not null references public.financial_events(id) on delete cascade,
@@ -16,35 +20,76 @@ create table if not exists public.event_queues (
   completed_at timestamptz
 );
 
--- Index untuk filter cepat
+-- Index untuk performa
 create index if not exists idx_event_queues_event_seq on public.event_queues(event_id, seq_number);
 create index if not exists idx_event_queues_status on public.event_queues(event_id, status);
 
--- Aktifkan Realtime
-alter publication supabase_realtime add table public.event_queues;
+-- 2. Aktifkan Realtime
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'event_queues'
+  ) then
+    alter publication supabase_realtime add table public.event_queues;
+  end if;
+end $$;
 
--- Kebijakan RLS (Row Level Security)
+-- 3. Row Level Security (RLS)
 alter table public.event_queues enable row level security;
 
--- Anon boleh membaca antrian dan insert antrian (tamu scan QR ambil nomor)
+drop policy if exists "Anon read event_queues" on public.event_queues;
 create policy "Anon read event_queues" on public.event_queues for select using (true);
+
+drop policy if exists "Anon insert event_queues" on public.event_queues;
 create policy "Anon insert event_queues" on public.event_queues for insert with check (true);
 
--- Authenticated (admin & kru) boleh update dan delete
+drop policy if exists "Auth update event_queues" on public.event_queues;
 create policy "Auth update event_queues" on public.event_queues for update using (true);
+
+drop policy if exists "Auth delete event_queues" on public.event_queues;
 create policy "Auth delete event_queues" on public.event_queues for delete using (true);
 
--- Fungsi Atomik Ambil Nomor Antrian Baru (Anon / Tamu)
+-- Izinkan anon membaca info dasar event (nama, tanggal) yang memiliki share_token
+drop policy if exists "Anon read basic financial_events" on public.financial_events;
+create policy "Anon read basic financial_events"
+  on public.financial_events
+  for select
+  using (share_token is not null);
+
+-- 4. Fungsi Mengambil Info Event Antrian (Tamu & Layar Display TV)
+create or replace function public.get_queue_event(p_token text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'id', e.id,
+    'name', e.name,
+    'date', e.date,
+    'share_token', e.share_token
+  )
+  from public.financial_events e
+  where p_token is not null and (e.share_token = p_token or e.id::text = p_token)
+  limit 1;
+$$;
+
+grant execute on function public.get_queue_event(text) to anon, authenticated;
+
+-- 5. Fungsi Atomik Ambil Nomor Antrian Baru (Mendukung event_id dan token)
 create or replace function public.take_queue_ticket(
   p_event_id bigint,
   p_name text,
-  p_phone text
+  p_phone text,
+  p_token text default null
 ) returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
+  v_event_id bigint := p_event_id;
   v_next_seq int;
   v_code text;
   v_new_row public.event_queues%rowtype;
@@ -53,12 +98,24 @@ begin
     raise exception 'Nama wajib diisi';
   end if;
 
+  -- Jika event_id kosong/null, cari berdasarkan p_token
+  if (v_event_id is null or v_event_id = 0) and p_token is not null then
+    select id into v_event_id
+    from public.financial_events
+    where share_token = p_token or id::text = p_token
+    limit 1;
+  end if;
+
+  if v_event_id is null then
+    raise exception 'Event tidak ditemukan atau link tidak valid';
+  end if;
+
   -- Kunci baris event supaya urutan nomor tidak ganda saat diklik bersamaan
-  perform 1 from public.financial_events where id = p_event_id for update;
+  perform 1 from public.financial_events where id = v_event_id for update;
 
   select coalesce(max(seq_number), 0) + 1 into v_next_seq
   from public.event_queues
-  where event_id = p_event_id;
+  where event_id = v_event_id;
 
   v_code := 'A-' || lpad(v_next_seq::text, 2, '0');
 
@@ -70,7 +127,7 @@ begin
     customer_phone,
     status
   ) values (
-    p_event_id,
+    v_event_id,
     v_code,
     v_next_seq,
     trim(p_name),
@@ -82,4 +139,4 @@ begin
 end;
 $$;
 
-grant execute on function public.take_queue_ticket(bigint, text, text) to anon, authenticated;
+grant execute on function public.take_queue_ticket(bigint, text, text, text) to anon, authenticated;

@@ -52,6 +52,13 @@ const QueueDisplay = () => {
 
   const fetchEvent = async () => {
     try {
+      if (token) {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('get_queue_event', { p_token: token });
+        if (rpcData && !rpcErr) {
+          setEvent(rpcData);
+          return;
+        }
+      }
       let query = supabase.from('financial_events').select('id, name, date, share_token');
       if (token && token.length >= 8) {
         query = query.eq('share_token', token);
@@ -63,23 +70,35 @@ const QueueDisplay = () => {
     }
   };
 
-  // Realtime subscription
+  // Realtime subscription & Auto Refresh
   useEffect(() => {
     if (!event?.id) return;
     fetchQueues(event.id);
+
+    // Auto-refresh setiap 3 detik (layar TV selalu sinkron)
+    const timer = setInterval(() => {
+      fetchQueues(event.id);
+    }, 3000);
 
     const channel = supabase
       .channel(`display_queue_${event.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'event_queues', filter: `event_id=eq.${event.id}` },
-        () => {
-          fetchQueues(event.id);
+        { event: '*', schema: 'public', table: 'event_queues' },
+        (payload) => {
+          if (
+            !payload.new ||
+            String(payload.new.event_id) === String(event.id) ||
+            String(payload.old?.event_id) === String(event.id)
+          ) {
+            fetchQueues(event.id);
+          }
         }
       )
       .subscribe();
 
     return () => {
+      clearInterval(timer);
       supabase.removeChannel(channel);
     };
   }, [event?.id]);

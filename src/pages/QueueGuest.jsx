@@ -68,7 +68,17 @@ const QueueGuest = () => {
   const fetchEvent = async () => {
     setLoading(true);
     try {
-      // Cari event berdasarkan token atau slug
+      // 1. Coba lewat RPC get_queue_event (security definer, selalu berhasil walau anon/tamu)
+      if (token) {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('get_queue_event', { p_token: token });
+        if (rpcData && !rpcErr) {
+          setEvent(rpcData);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 2. Query langsung tabel financial_events
       let query = supabase.from('financial_events').select('id, name, date, share_token');
       if (token && token.length >= 8) {
         query = query.eq('share_token', token);
@@ -102,22 +112,39 @@ const QueueGuest = () => {
       fetchTicketById(savedTicketId);
     }
 
-    // Subscribe ke Supabase Realtime
+    // Auto refresh setiap 3 detik (jaminan 100% selalu update otomatis)
+    const timer = setInterval(() => {
+      fetchQueues(event.id);
+      const currentTicketId = localStorage.getItem(`snaphub_ticket_${event.id}`);
+      if (currentTicketId) {
+        fetchTicketById(currentTicketId);
+      }
+    }, 3000);
+
+    // Subscribe ke Supabase Realtime (update instan)
     const channel = supabase
       .channel(`queue_${event.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'event_queues', filter: `event_id=eq.${event.id}` },
-        () => {
-          fetchQueues(event.id);
-          if (savedTicketId) {
-            fetchTicketById(savedTicketId);
+        { event: '*', schema: 'public', table: 'event_queues' },
+        (payload) => {
+          if (
+            !payload.new ||
+            String(payload.new.event_id) === String(event.id) ||
+            String(payload.old?.event_id) === String(event.id)
+          ) {
+            fetchQueues(event.id);
+            const currentTicketId = localStorage.getItem(`snaphub_ticket_${event.id}`);
+            if (currentTicketId) {
+              fetchTicketById(currentTicketId);
+            }
           }
         }
       )
       .subscribe();
 
     return () => {
+      clearInterval(timer);
       supabase.removeChannel(channel);
     };
   }, [event?.id]);
@@ -184,15 +211,21 @@ const QueueGuest = () => {
       let cleanPhone = phone.replace(/[^0-9]/g, '');
       if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
 
-      // Coba lewat RPC take_queue_ticket
+      // Coba lewat RPC take_queue_ticket (mengirim event_id dan token)
       const { data, error } = await supabase.rpc('take_queue_ticket', {
-        p_event_id: event.id,
+        p_event_id: event?.id || null,
         p_name: name.trim(),
-        p_phone: cleanPhone
+        p_phone: cleanPhone,
+        p_token: token || null
       });
 
       if (error) {
-        // Fallback manual insert jika fungsi RPC belum di-execute di SQL editor
+        // Fallback manual insert jika fungsi RPC versi lama
+        const targetEventId = event?.id;
+        if (!targetEventId) {
+          throw new Error(error.message || 'Event belum termuat atau link antrian tidak valid');
+        }
+
         const currentCount = allQueues.length;
         const nextSeq = currentCount + 1;
         const queueCode = 'A-' + String(nextSeq).padStart(2, '0');
@@ -200,7 +233,7 @@ const QueueGuest = () => {
         const { data: fallbackData, error: fbError } = await supabase
           .from('event_queues')
           .insert([{
-            event_id: event.id,
+            event_id: targetEventId,
             queue_number: queueCode,
             seq_number: nextSeq,
             customer_name: name.trim(),
@@ -212,10 +245,13 @@ const QueueGuest = () => {
 
         if (fbError) throw fbError;
         setMyTicket(fallbackData);
-        localStorage.setItem(`snaphub_ticket_${event.id}`, fallbackData.id);
+        localStorage.setItem(`snaphub_ticket_${targetEventId}`, fallbackData.id);
       } else {
         setMyTicket(data);
-        localStorage.setItem(`snaphub_ticket_${event.id}`, data.id);
+        if (data.event_id && !event?.id) {
+          setEvent((prev) => ({ ...(prev || {}), id: data.event_id }));
+        }
+        localStorage.setItem(`snaphub_ticket_${data.event_id || event?.id}`, data.id);
       }
 
       toast.success('Nomor antrian berhasil diambil!');
