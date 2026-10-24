@@ -162,7 +162,7 @@ const AdminSchedule = () => {
 
       {/* Modal Input Event Name */}
       {selectedDate && (
-        <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
           <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-sm shadow-[var(--admin-shadow)] relative">
             <button onClick={() => setSelectedDate(null)} className="absolute top-6 right-6 text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors">
               <FiX size={20} />
@@ -196,7 +196,7 @@ const AdminSchedule = () => {
 
       {/* Modal Konfirmasi Hapus Jadwal */}
       {scheduleToDelete && (
-        <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
           <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-sm shadow-[var(--admin-shadow)] relative">
             <div className="w-14 h-14 rounded-full bg-[var(--admin-accent-bg)] flex items-center justify-center mb-5 mx-auto border border-[#D28A94]/20">
               <FiTrash2 size={24} className="text-[var(--admin-accent-hover)]" />
@@ -229,7 +229,7 @@ const AdminSchedule = () => {
           next2Label={null}
         />
         {loading && (
-          <div className="absolute inset-0 bg-black/10 backdrop-blur-sm rounded-[1.5rem] flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-black/30 rounded-[1.5rem] flex items-center justify-center z-10">
             <div className="w-8 h-8 border-4 border-[var(--admin-accent)] border-t-transparent rounded-full animate-spin" />
           </div>
         )}

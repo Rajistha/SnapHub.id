@@ -8,7 +8,6 @@ import {
   FiCalendar, FiTag, FiStar, FiGlobe, FiRefreshCw,
   FiShare2, FiSettings, FiSliders, FiChevronDown, FiFolder, FiList
 } from 'react-icons/fi';
-import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_LINKTREE_PROFILE, DEFAULT_LINKS, LINK_CATEGORIES } from '../lib/linktreeDefaults';
 
 // Preset icon list for links without image logo
@@ -92,12 +91,22 @@ const AdminLinks = () => {
 
       if (settingsData?.value) {
         if (settingsData.value.profile) {
+          const rawProfile = settingsData.value.profile;
+          const currentSocials = Array.isArray(rawProfile.socials) ? rawProfile.socials : [];
+          // Pastikan semua platform bawaan (whatsapp, instagram, tiktok, website) ada
+          const mergedSocials = DEFAULT_LINKTREE_PROFILE.socials.map(def => {
+            const found = currentSocials.find(s => s.platform === def.platform);
+            return found || def;
+          });
+          const extra = currentSocials.filter(s => !DEFAULT_LINKTREE_PROFILE.socials.some(def => def.platform === s.platform));
+
           setProfile({
             ...DEFAULT_LINKTREE_PROFILE,
-            ...settingsData.value.profile,
+            ...rawProfile,
+            socials: [...mergedSocials, ...extra],
             concierge: {
               ...DEFAULT_LINKTREE_PROFILE.concierge,
-              ...(settingsData.value.profile.concierge || {})
+              ...(rawProfile.concierge || {})
             }
           });
         }
@@ -606,14 +615,18 @@ const AdminLinks = () => {
       </div>
 
       {/* ── Profile Settings Drawer / Panel ── */}
-      <AnimatePresence>
+      <div
+        style={{
+          maxHeight: isProfileOpen ? '2000px' : '0px',
+          opacity: isProfileOpen ? 1 : 0,
+          overflow: 'hidden',
+          transition: isProfileOpen
+            ? 'max-height 0.4s ease, opacity 0.25s ease'
+            : 'max-height 0.3s ease, opacity 0.2s ease'
+        }}
+      >
         {isProfileOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-[var(--admin-surface)] border border-[#D90429]/30 p-6 rounded-2xl shadow-xl overflow-hidden"
-          >
+          <div className="bg-[var(--admin-surface)] border border-[#D90429]/30 p-6 rounded-2xl shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-[var(--admin-text-main)] flex items-center gap-2">
                 <FiSliders className="text-[#D90429]" />
@@ -669,7 +682,7 @@ const AdminLinks = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
                     URL WhatsApp
@@ -678,7 +691,11 @@ const AdminLinks = () => {
                     type="text"
                     value={profile.socials?.find(s => s.platform === 'whatsapp')?.url || ''}
                     onChange={(e) => {
-                      const updated = profile.socials.map(s => s.platform === 'whatsapp' ? { ...s, url: e.target.value } : s);
+                      const val = e.target.value;
+                      const exists = profile.socials?.some(s => s.platform === 'whatsapp');
+                      const updated = exists
+                        ? profile.socials.map(s => s.platform === 'whatsapp' ? { ...s, url: val } : s)
+                        : [...(profile.socials || []), { platform: 'whatsapp', url: val, label: 'WhatsApp' }];
                       setProfile({ ...profile, socials: updated });
                     }}
                     className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
@@ -693,7 +710,11 @@ const AdminLinks = () => {
                     type="text"
                     value={profile.socials?.find(s => s.platform === 'instagram')?.url || ''}
                     onChange={(e) => {
-                      const updated = profile.socials.map(s => s.platform === 'instagram' ? { ...s, url: e.target.value } : s);
+                      const val = e.target.value;
+                      const exists = profile.socials?.some(s => s.platform === 'instagram');
+                      const updated = exists
+                        ? profile.socials.map(s => s.platform === 'instagram' ? { ...s, url: val } : s)
+                        : [...(profile.socials || []), { platform: 'instagram', url: val, label: 'Instagram' }];
                       setProfile({ ...profile, socials: updated });
                     }}
                     className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
@@ -708,11 +729,35 @@ const AdminLinks = () => {
                     type="text"
                     value={profile.socials?.find(s => s.platform === 'tiktok')?.url || ''}
                     onChange={(e) => {
-                      const updated = profile.socials.map(s => s.platform === 'tiktok' ? { ...s, url: e.target.value } : s);
+                      const val = e.target.value;
+                      const exists = profile.socials?.some(s => s.platform === 'tiktok');
+                      const updated = exists
+                        ? profile.socials.map(s => s.platform === 'tiktok' ? { ...s, url: val } : s)
+                        : [...(profile.socials || []), { platform: 'tiktok', url: val, label: 'TikTok' }];
                       setProfile({ ...profile, socials: updated });
                     }}
                     className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
                     placeholder="https://tiktok.com/@..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5 flex items-center justify-between">
+                    <span>URL Website</span>
+                    <span className="text-[10px] lowercase font-normal text-zinc-500">(opsional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={profile.socials?.find(s => s.platform === 'website')?.url || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const exists = profile.socials?.some(s => s.platform === 'website');
+                      const updated = exists
+                        ? profile.socials.map(s => s.platform === 'website' ? { ...s, url: val } : s)
+                        : [...(profile.socials || []), { platform: 'website', url: val, label: 'Website Utama' }];
+                      setProfile({ ...profile, socials: updated });
+                    }}
+                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
+                    placeholder="https://snaphub.my.id"
                   />
                 </div>
               </div>
@@ -840,9 +885,9 @@ const AdminLinks = () => {
                 </button>
               </div>
             </form>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* ── Search & Filter Bar ── */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-4 rounded-xl">
@@ -1167,7 +1212,7 @@ const AdminLinks = () => {
 
       {/* ── Delete Confirmation Modal ── */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
           <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <h3 className="text-lg font-bold text-[var(--admin-text-main)]">Hapus Link?</h3>
             <p className="text-sm text-[var(--admin-text-muted)] mt-2">
@@ -1192,14 +1237,11 @@ const AdminLinks = () => {
       )}
 
       {/* ── Add / Edit Link Modal ── */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+      {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 overflow-y-auto">
+            <div
               className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl p-4 sm:p-6 relative my-auto"
+              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
             >
               {/* Header */}
               <div className="flex items-center justify-between pb-4 border-b border-[var(--admin-border)]">
@@ -1565,20 +1607,16 @@ const AdminLinks = () => {
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+      )}
 
       {/* ── Section / Header Modal ── */}
-      <AnimatePresence>
-        {isSectionModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+      {isSectionModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 overflow-y-auto">
+            <div
               className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl p-4 sm:p-6 relative my-auto"
+              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
             >
               <div className="flex items-center justify-between pb-3 border-b border-[var(--admin-border)]">
                 <h3 className="text-base font-bold text-[var(--admin-text-main)]">
@@ -1703,10 +1741,9 @@ const AdminLinks = () => {
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
 };

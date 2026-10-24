@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { 
   FiShare2, FiCopy, FiCheck, FiArrowRight, FiExternalLink, 
   FiCamera, FiCalendar, FiImage, FiTag, FiStar, FiGlobe, 
-  FiArrowLeft, FiX, FiChevronDown
+  FiX, FiChevronDown
 } from 'react-icons/fi';
 import { SiWhatsapp, SiInstagram, SiTiktok } from 'react-icons/si';
 import toast, { Toaster } from 'react-hot-toast';
@@ -304,15 +304,7 @@ const Linktree = () => {
       </div>
 
       {/* ── Top Navigation Bar ── */}
-      <header className="w-full max-w-md mx-auto px-5 pt-5 pb-3 flex items-center justify-between relative z-10">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] transition-all backdrop-blur-md"
-        >
-          <FiArrowLeft size={13} />
-          <span>Website Utama</span>
-        </Link>
-
+      <header className="w-full max-w-md mx-auto px-5 pt-5 pb-3 flex items-center justify-end relative z-10">
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setIsQrModalOpen(true)}
@@ -387,15 +379,19 @@ const Linktree = () => {
           {/* Social Icons (DIPISAH - SEPARATE INDIVIDUAL CIRCULAR BUTTONS) */}
           <div className="flex items-center justify-center gap-2.5 mt-4">
             {profile.socials?.map((social) => {
-              if (!social.url) return null;
+              if (!social.url || !social.url.trim()) return null;
+              const href = (social.platform === 'website' && (social.url === '/' || social.url.startsWith('/')))
+                ? `https://snaphub.my.id${social.url === '/' ? '' : social.url}`
+                : social.url;
+
               return (
                 <a
                   key={social.platform}
-                  href={social.url}
+                  href={href}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-9 h-9 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/[0.08] hover:border-white/20 text-zinc-300 hover:text-white flex items-center justify-center transition-all shadow-sm"
-                  title={social.label}
+                  title={social.label || social.platform}
                 >
                   {social.platform === 'instagram' && <SiInstagram size={15} />}
                   {social.platform === 'tiktok' && <SiTiktok size={14} />}

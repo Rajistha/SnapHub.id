@@ -404,7 +404,7 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
         <div className="space-y-6 max-w-[1100px]">
           {/* Password Modal */}
           {passwordModal.isOpen && (
-            <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
               <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-sm shadow-[var(--admin-shadow)] relative">
                 <div className="w-14 h-14 rounded-full bg-[var(--admin-accent-bg)] flex items-center justify-center mb-5 mx-auto border border-[var(--admin-accent)]/20">
                   <FiLock size={24} className="text-[var(--admin-accent)]" />
@@ -688,7 +688,7 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
       <div className="space-y-8 max-w-[1100px]">
         {/* Password Modal */}
         {passwordModal.isOpen && (
-          <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
             <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-sm shadow-[var(--admin-shadow)] relative">
               <div className="w-14 h-14 rounded-full bg-[var(--admin-accent-bg)] flex items-center justify-center mb-5 mx-auto border border-[var(--admin-accent)]/20">
                 <FiLock size={24} className="text-[var(--admin-accent)]" />
@@ -721,17 +721,6 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
             </div>
           </div>
         )}
-
-        <div className="grid grid-cols-1 gap-6">
-          <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-6 rounded-[1.5rem] shadow-[var(--admin-shadow)] flex flex-col justify-center">
-            <h3 className="text-[var(--admin-accent)] font-semibold flex items-center gap-2 mb-4"><FiCalendar /> Tambah Event Manual</h3>
-            <form onSubmit={handleAddEvent} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input type="text" required placeholder="Nama Event (Cth: Wedding Anya)" value={newEvent.name} onChange={e => setNewEvent({ ...newEvent, name: e.target.value })} className="bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-[var(--admin-text-main)] focus:outline-none focus:border-[#E79EA7]" />
-              <input type="date" required value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })} className="bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-[var(--admin-text-main)] focus:outline-none focus:border-[#E79EA7] [color-scheme:dark]" />
-              <button type="submit" className="bg-[#C9868F] hover:bg-[var(--admin-accent)] text-[var(--admin-surface)] font-bold rounded-xl px-4 py-2.5 transition-colors">Tambah Event</button>
-            </form>
-          </div>
-        </div>
 
         {/* Tabel Master Event */}
         <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-6 rounded-[1.5rem] shadow-[var(--admin-shadow)]">
@@ -1421,7 +1410,7 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
   return (
     <div className="relative">
       {loading && (
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex justify-center items-start pt-20 rounded-[1.5rem]">
+        <div className="absolute inset-0 bg-black/60 z-50 flex justify-center items-start pt-20 rounded-[1.5rem]">
           <div className="w-8 h-8 border-4 border-[#E79EA7] border-t-transparent rounded-full animate-spin" />
         </div>
       )}
@@ -1433,7 +1422,7 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
 
       {/* Delete Modal */}
       {deleteModal.isOpen && (
-        <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
           <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-sm shadow-[0_0_40px_rgba(210,138,148,0.1)]">
             <div className="w-14 h-14 rounded-full bg-[#D28A94]/10 flex items-center justify-center mb-5 mx-auto border border-[#D28A94]/20">
               <FiTrash2 size={24} className="text-[#D28A94]" />

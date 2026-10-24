@@ -303,7 +303,7 @@ const AdminGallery = () => {
 
       {/* Add Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
           <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-md shadow-[var(--admin-shadow)] relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onClick={closeAddModal} className="absolute top-6 right-6 text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors">
               <FiX size={20} />
@@ -371,7 +371,7 @@ const AdminGallery = () => {
 
       {/* Delete Modal */}
       {imageToDelete && (
-        <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
           <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-sm shadow-[var(--admin-shadow)] relative">
             <div className="w-14 h-14 rounded-full bg-[var(--admin-accent-bg)] flex items-center justify-center mb-5 mx-auto border border-[#D28A94]/20">
               <FiTrash2 size={24} className="text-[var(--admin-accent-hover)]" />
@@ -401,7 +401,7 @@ const AdminGallery = () => {
 
       {/* Edit Modal */}
       {imageToEdit && (
-        <div className="fixed inset-0 lg:left-64 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4">
           <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-md shadow-[var(--admin-shadow)] relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onClick={closeEditModal} className="absolute top-6 right-6 text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors">
               <FiX size={20} />

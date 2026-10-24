@@ -14,9 +14,27 @@ const formatDate = (date) =>
 const slugify = (text) =>
   (text || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
+const getAppBaseUrl = () => {
+  if (typeof window === 'undefined') return '';
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return window.location.origin;
+  }
+  return 'https://app.snaphub.my.id';
+};
+
+const getAdminUrl = () => {
+  if (typeof window === 'undefined') return '/admin';
+  const host = window.location.hostname;
+  if (host === 'app.snaphub.my.id' || host.startsWith('app.')) {
+    return 'https://snaphub.my.id/admin';
+  }
+  return '/admin';
+};
+
 const liveUrl = (event) => {
   const slug = slugify(event.name);
-  return `${window.location.origin}/live/${slug ? `${slug}-` : ''}${event.share_token}`;
+  return `${getAppBaseUrl()}/live/${slug ? `${slug}-` : ''}${event.share_token}`;
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -27,7 +45,7 @@ const daysUntil = (date, todayStr) =>
 
 const crewUrl = (event) => {
   const slug = slugify(event.name);
-  return `${window.location.origin}/crew/${slug ? `${slug}-` : ''}${event.crew_token}`;
+  return `${getAppBaseUrl()}/crew/${slug ? `${slug}-` : ''}${event.crew_token}`;
 };
 
 const SesiFoto = () => {
@@ -398,9 +416,9 @@ const SesiFoto = () => {
             </button>
           </form>
           <div className="mt-6 text-center">
-            <Link to="/admin" className="text-gray-500 hover:text-white text-sm transition-colors flex items-center justify-center gap-2">
+            <a href={getAdminUrl()} className="text-gray-500 hover:text-white text-sm transition-colors flex items-center justify-center gap-2">
               <FiArrowLeft /> Kembali ke Admin
-            </Link>
+            </a>
           </div>
         </div>
       </div>
@@ -426,13 +444,13 @@ const SesiFoto = () => {
                 <FiArrowLeft size={16} />
               </button>
             ) : (
-              <Link
-                to="/admin"
+              <a
+                href={getAdminUrl()}
                 className="shrink-0 p-2 rounded-lg border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
                 title="Kembali ke Admin"
               >
                 <FiArrowLeft size={16} />
-              </Link>
+              </a>
             )}
             <div className="min-w-0">
               <h2 className="text-xl font-bold text-[var(--admin-text-main)] font-heading leading-tight">Catat Sesi Foto</h2>

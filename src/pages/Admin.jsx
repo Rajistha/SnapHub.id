@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
-import { FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, FiBriefcase, FiCamera, FiTag, FiLink } from 'react-icons/fi';
+import { 
+  FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, 
+  FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, 
+  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget 
+} from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 // Admin Sub-components
@@ -24,7 +28,11 @@ const Admin = () => {
   const navigate = useNavigate();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isFinanceOpen, setIsFinanceOpen] = useState(true);
+  const [openSections, setOpenSections] = useState({
+    content: true,
+    finance: true,
+    app: true,
+  });
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('adminTheme') || 'dark');
 
@@ -52,7 +60,8 @@ const Admin = () => {
   else if (pathParts[1] === 'pricelist') activeTab = 'pricelist';
   else if (pathParts[1] === 'links') activeTab = 'links';
   else if (pathParts[1] === 'finance') {
-    if (pathParts[2] === 'recap') activeTab = 'finance_recap';
+    if (pathParts[2] === 'operational') activeTab = 'finance_operational';
+    else if (pathParts[2] === 'recap') activeTab = 'finance_recap';
     else if (pathParts[2] === 'target') activeTab = 'finance_target';
     else activeTab = 'finance_events';
   } else if (pathParts[1]) {
@@ -68,6 +77,7 @@ const Admin = () => {
     else if (tabId === 'pricelist') navigate('/admin/pricelist');
     else if (tabId === 'links') navigate('/admin/links');
     else if (tabId === 'finance_events') navigate('/admin/finance/events');
+    else if (tabId === 'finance_operational') navigate('/admin/finance/operational');
     else if (tabId === 'finance_recap') navigate('/admin/finance/recap');
     else if (tabId === 'finance_target') navigate('/admin/finance/target');
     else navigate(`/admin/${tabId}`);
@@ -167,7 +177,7 @@ const Admin = () => {
 
           <div className="mt-6 text-center">
             <Link to="/" className="text-gray-500 hover:text-white text-sm transition-colors flex items-center justify-center gap-2">
-              <FiArrowLeft /> Kembali ke Website
+              <FiArrowLeft /> Website
             </Link>
           </div>
         </div>
@@ -175,37 +185,58 @@ const Admin = () => {
     );
   }
 
-  // Admin Dashboard Layout
-  const TABS = [
-    { id: 'dashboard', label: 'Dashboard', icon: <FiPieChart size={20} /> },
-    { id: 'gallery', label: 'Galeri', icon: <FiImage size={20} /> },
-    { id: 'schedule', label: 'Jadwal', icon: <FiCalendar size={20} /> },
-    { id: 'reviews', label: 'Reviews', icon: <FiStar size={20} /> },
-    { id: 'logos', label: 'Client Logos', icon: <FiBriefcase size={20} /> },
-    { id: 'pricelist', label: 'Pricelist', icon: <FiTag size={20} /> },
-    { id: 'links', label: 'Bio Links / Linktree', icon: <FiLink size={20} /> },
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  );
+
+  // Admin Dashboard Layout - Dikelompokkan per Section Collapsible
+  // Aturan: Semua penamaan judul section dan item tepat 1 kata dalam bahasa Inggris
+  const NAV_SECTIONS = [
     {
-      id: 'finance',
-      label: 'Event & Keuangan',
-      icon: <FiDollarSign size={20} />,
-      subTabs: [
-        { id: 'finance_events', label: 'Keuangan Event' },
-        { id: 'finance_operational', label: 'Pengeluaran Operasional' },
-        { id: 'finance_recap', label: 'Rekapitulasi Event' },
-        { id: 'finance_target', label: 'Target & Pencapaian' },
+      id: 'content',
+      title: 'Content',
+      items: [
+        { id: 'gallery', label: 'Gallery', icon: <FiImage size={18} /> },
+        { id: 'pricelist', label: 'Pricelist', icon: <FiTag size={18} /> },
+        { id: 'logos', label: 'Logos', icon: <FiBriefcase size={18} /> },
+        { id: 'reviews', label: 'Reviews', icon: <FiStar size={18} /> },
       ]
     },
+    {
+      id: 'finance',
+      title: 'Finance',
+      items: [
+        { id: 'schedule', label: 'Schedule', icon: <FiCalendar size={18} /> },
+        { id: 'finance_events', label: 'Events', icon: <FiDollarSign size={18} /> },
+        { id: 'finance_operational', label: 'Operations', icon: <FiCreditCard size={18} /> },
+        { id: 'finance_recap', label: 'Recap', icon: <FiBarChart2 size={18} /> },
+        { id: 'finance_target', label: 'Target', icon: <FiTarget size={18} /> },
+      ]
+    },
+    {
+      id: 'app',
+      title: 'Apps',
+      items: [
+        { id: 'links', label: 'Links', icon: <FiLink size={18} /> },
+        { 
+          id: 'sesi', 
+          label: 'Sessions', 
+          icon: <FiCamera size={18} />, 
+          isLink: true, 
+          to: isLocalhost ? '/sesi' : 'https://app.snaphub.my.id',
+          isExternal: !isLocalhost 
+        },
+      ]
+    }
   ];
 
   const getActiveTabLabel = () => {
-    for (const tab of TABS) {
-      if (tab.id === activeTab) return tab.label;
-      if (tab.subTabs) {
-        const sub = tab.subTabs.find(s => s.id === activeTab);
-        if (sub) return sub.label;
-      }
+    if (activeTab === 'dashboard') return 'Dashboard';
+    for (const section of NAV_SECTIONS) {
+      const found = section.items.find(item => item.id === activeTab);
+      if (found) return found.label;
     }
-    return 'Admin Panel';
+    return 'Dashboard';
   };
 
   return (
@@ -215,18 +246,18 @@ const Admin = () => {
       {/* Logout Modal */}
       {isLogoutModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsLogoutModalOpen(false)}></div>
+          <div className="absolute inset-0 bg-black/60" onClick={() => setIsLogoutModalOpen(false)}></div>
           <div className="relative bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in-up">
-            <h3 className="text-xl font-bold text-[var(--admin-accent)] mb-2">Konfirmasi Logout</h3>
+            <h3 className="text-xl font-bold text-[var(--admin-accent)] mb-2">Confirm Logout</h3>
             <p className="text-[var(--admin-text-muted)] text-sm mb-6">
-              Apakah Anda yakin ingin keluar dari sesi Admin?
+              Are you sure you want to log out from the Admin session?
             </p>
             <div className="flex gap-3">
               <button 
                 onClick={() => setIsLogoutModalOpen(false)}
                 className="flex-1 px-4 py-2.5 rounded-xl border border-[var(--admin-border)] text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors font-medium text-sm cursor-pointer"
               >
-                Batal
+                Cancel
               </button>
               <button 
                 onClick={() => {
@@ -235,7 +266,7 @@ const Admin = () => {
                 }}
                 className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors font-medium text-sm border border-red-500 cursor-pointer"
               >
-                Ya, Keluar
+                Log Out
               </button>
             </div>
           </div>
@@ -245,7 +276,7 @@ const Admin = () => {
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -256,65 +287,111 @@ const Admin = () => {
           <Link to="/" className="inline-block">
             <img src="/icons.svg" alt="SnapHub Logo" className="h-8" />
           </Link>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)]">
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] cursor-pointer">
             <FiX size={24} />
           </button>
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
-          {TABS.map(tab => (
-            <div key={tab.id}>
-              <button
-                onClick={() => {
-                  if (tab.subTabs) {
-                    setIsFinanceOpen(!isFinanceOpen);
-                    if (!tab.subTabs.find(sub => sub.id === activeTab)) {
-                      setActiveTab(tab.subTabs[0].id);
-                    }
-                  } else {
-                    setActiveTab(tab.id);
-                    setIsSidebarOpen(false);
-                  }
-                }}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left ${activeTab === tab.id || (tab.subTabs && tab.subTabs.some(sub => sub.id === activeTab)) ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] font-medium border border-[var(--admin-accent)]/20' : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent'}`}
-              >
-                <div className="flex items-center gap-3">
-                  {tab.icon}
-                  {tab.label}
-                </div>
-                {tab.subTabs && (
-                  <FiChevronDown className={`transition-transform duration-200 ${isFinanceOpen ? 'rotate-180' : ''}`} />
-                )}
-              </button>
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3">
+          {/* Dashboard Standalone (tanpa section) */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('dashboard');
+              setIsSidebarOpen(false);
+            }}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm cursor-pointer ${
+              activeTab === 'dashboard'
+                ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] font-medium border border-[var(--admin-accent)]/20'
+                : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent'
+            }`}
+          >
+            <FiPieChart size={18} />
+            <span>Dashboard</span>
+          </button>
 
-              {tab.subTabs && (
-                <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isFinanceOpen ? 'max-h-64 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
-                  <div className="ml-4 pl-4 border-l border-[var(--admin-border-subtle)] space-y-1">
-                    {tab.subTabs.map(sub => (
+          {/* Section Accordions */}
+          {NAV_SECTIONS.map((section) => {
+            const isOpen = openSections[section.id] !== false;
+            const hasActiveItem = section.items.some(item => item.id === activeTab);
+
+            return (
+              <div key={section.id} className="space-y-1">
+                {/* Section Header (Collapsible Accordion) */}
+                <button
+                  type="button"
+                  onClick={() => setOpenSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold tracking-wider uppercase transition-colors cursor-pointer select-none rounded-lg group ${
+                    hasActiveItem ? 'text-[var(--admin-accent)]' : 'text-[var(--admin-text-subtle)] hover:text-[var(--admin-text-main)]'
+                  }`}
+                >
+                  <span>{section.title}</span>
+                  <FiChevronDown
+                    size={13}
+                    className={`transition-transform duration-200 text-[var(--admin-text-subtle)] group-hover:text-[var(--admin-text-main)] ${
+                      isOpen ? 'rotate-0' : '-rotate-90'
+                    }`}
+                  />
+                </button>
+
+                {/* Section Items (Flat) */}
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isOpen ? 'max-h-[500px] opacity-100 space-y-1 mt-1' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  {section.items.map((tab) => {
+                    if (tab.isExternal) {
+                      return (
+                        <a
+                          key={tab.id}
+                          href={tab.to}
+                          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent cursor-pointer"
+                        >
+                          {tab.icon}
+                          <span>{tab.label}</span>
+                        </a>
+                      );
+                    }
+
+                    if (tab.isLink) {
+                      return (
+                        <Link
+                          key={tab.id}
+                          to={tab.to}
+                          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent cursor-pointer"
+                        >
+                          {tab.icon}
+                          <span>{tab.label}</span>
+                        </Link>
+                      );
+                    }
+
+                    const isActive = activeTab === tab.id;
+
+                    return (
                       <button
-                        key={sub.id}
+                        key={tab.id}
+                        type="button"
                         onClick={() => {
-                          setActiveTab(sub.id);
+                          setActiveTab(tab.id);
                           setIsSidebarOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors ${activeTab === sub.id ? 'text-[var(--admin-accent)] bg-[var(--admin-accent-bg)]' : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)]'}`}
+                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm cursor-pointer ${
+                          isActive
+                            ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] font-medium border border-[var(--admin-accent)]/20'
+                            : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent'
+                        }`}
                       >
-                        {sub.label}
+                        {tab.icon}
+                        <span>{tab.label}</span>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-          ))}
-
-          <Link
-            to="/sesi"
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent"
-          >
-            <FiCamera size={20} />
-            Catat Sesi Foto
-          </Link>
+              </div>
+            );
+          })}
         </nav>
 
         <div className="p-4 shrink-0 border-t border-[var(--admin-border-subtle)] space-y-2">
@@ -326,11 +403,11 @@ const Admin = () => {
             {/* Icon & Text */}
             <span className="flex items-center gap-2 text-sm font-semibold">
               {theme === 'dark' ? <FiMoon className="text-[#D28A94]" size={16} /> : <FiSun className="text-gray-500" size={16} />}
-              <span className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
+              <span className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>{theme === 'dark' ? 'Dark' : 'Light'}</span>
             </span>
           </button>
           <Link to="/" className="w-full flex items-center justify-center gap-2 bg-[var(--admin-hover-bg)] hover:border-[var(--admin-border)] border border-transparent text-[var(--admin-text-main)] px-4 py-3 rounded-xl transition-all text-sm font-medium group">
-            <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" /> Kembali ke Website
+            <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" /> Website
           </Link>
           <button onClick={() => setIsLogoutModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-[var(--admin-hover-bg)] hover:bg-red-500 hover:border-red-500 border border-transparent hover:text-white text-[var(--admin-text-main)] px-4 py-3 rounded-xl transition-colors text-sm font-medium cursor-pointer">
             <FiLogOut /> Logout
@@ -340,10 +417,6 @@ const Admin = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        {/* Background Ambient */}
-        {theme === 'dark' && (
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D90429]/5 blur-[120px] rounded-full pointer-events-none -z-10" />
-        )}
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8">

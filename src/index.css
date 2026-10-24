@@ -72,6 +72,18 @@
     scroll-behavior: smooth;
     scroll-padding-top: 80px;
     font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+
+  /* Prevent iOS Safari auto-zoom on input/textarea focus */
+  @media screen and (max-width: 896px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 
   body {
@@ -727,3 +739,15 @@
 .bot-pulse {
   animation: bot-pulse 2.2s infinite;
 }
+
+/* Admin modal lightweight entry */
+@keyframes adminModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

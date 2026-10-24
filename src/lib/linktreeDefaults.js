@@ -12,7 +12,7 @@ export const DEFAULT_LINKTREE_PROFILE = {
     { platform: 'whatsapp', url: 'https://wa.me/6285190643459?text=Halo%20SnapHub%2C%20saya%20tertarik%20dengan%20layanan%20photobooth!', label: 'WhatsApp' },
     { platform: 'instagram', url: 'https://instagram.com/snaphub.id', label: 'Instagram' },
     { platform: 'tiktok', url: 'https://tiktok.com/@snaphub.id', label: 'TikTok' },
-    { platform: 'website', url: '/', label: 'Website Utama' }
+    { platform: 'website', url: 'https://snaphub.my.id', label: 'Website Utama' }
   ],
   concierge: {
     show: true,

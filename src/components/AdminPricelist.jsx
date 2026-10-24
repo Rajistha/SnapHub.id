@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { FiPlus, FiTrash2, FiSave, FiRotateCcw } from 'react-icons/fi';
+import { 
+  FiPlus, FiTrash2, FiSave, FiRotateCcw, 
+  FiUploadCloud, FiExternalLink, FiFileText 
+} from 'react-icons/fi';
 import { DEFAULT_PACKAGES, DEFAULT_TNC, mergePackages, formatRupiah, startFrom } from '../lib/pricelistDefaults';
 
 const inputCls =
@@ -18,6 +21,9 @@ const toEditable = (packages) =>
 const AdminPricelist = () => {
   const [packages, setPackages] = useState(() => toEditable(DEFAULT_PACKAGES));
   const [tnc, setTnc] = useState(DEFAULT_TNC);
+  const [pdfUrl, setPdfUrl] = useState('/PriceGuideSnapHub.id.pdf');
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const fileInputRef = useRef(null);
   const [activeId, setActiveId] = useState(DEFAULT_PACKAGES[0].id);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,6 +40,7 @@ const AdminPricelist = () => {
         if (error) throw error;
         setPackages(toEditable(mergePackages(data?.value?.packages)));
         if (Array.isArray(data?.value?.tnc) && data.value.tnc.length > 0) setTnc(data.value.tnc);
+        if (data?.value?.pdfUrl) setPdfUrl(data.value.pdfUrl);
       } catch (error) {
         console.error(error);
         toast.error('Gagal mengambil pricelist, menampilkan data bawaan');
@@ -85,6 +92,42 @@ const AdminPricelist = () => {
     toast('Dikembalikan ke bawaan, klik Simpan untuk menerapkan');
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('Ukuran file maksimal 20MB');
+      return;
+    }
+
+    setUploadingPdf(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `pricelist_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('client-logos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('client-logos')
+        .getPublicUrl(fileName);
+
+      setPdfUrl(publicUrl);
+      setDirty(true);
+      toast.success('File pricelist berhasil diunggah! Klik "Simpan Pricelist" untuk menerapkan ke website.');
+    } catch (err) {
+      console.error('Upload error:', err);
+      toast.error('Gagal mengunggah file: ' + (err.message || 'Error'));
+    } finally {
+      setUploadingPdf(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSave = async () => {
     const cleaned = packages.map((p) => ({
       id: p.id,
@@ -111,12 +154,20 @@ const AdminPricelist = () => {
     try {
       const { error } = await supabase
         .from('site_settings')
-        .upsert({ key: 'pricelist', value: { packages: cleaned, tnc: cleanedTnc }, updated_at: new Date().toISOString() });
+        .upsert({ 
+          key: 'pricelist', 
+          value: { 
+            packages: cleaned, 
+            tnc: cleanedTnc,
+            pdfUrl: pdfUrl.trim() || '/PriceGuideSnapHub.id.pdf'
+          }, 
+          updated_at: new Date().toISOString() 
+        });
       if (error) throw error;
       setPackages(toEditable(mergePackages(cleaned)));
       setTnc(cleanedTnc);
       setDirty(false);
-      toast.success('Pricelist disimpan');
+      toast.success('Pricelist & file unduhan berhasil disimpan');
     } catch (error) {
       console.error(error);
       toast.error('Gagal menyimpan pricelist');
@@ -135,13 +186,98 @@ const AdminPricelist = () => {
 
   return (
     <div className="max-w-3xl space-y-5">
+      {/* ── File Download Pricelist ── */}
+      <div className="border border-[var(--admin-border)] rounded-2xl p-5 space-y-4 bg-[var(--admin-card-bg)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-main)] flex items-center gap-2">
+              <FiFileText className="text-[#D90429]" size={16} /> File Download Pricelist (PDF / Dokumen)
+            </h4>
+            <p className="text-xs text-[var(--admin-text-muted)] mt-1">
+              File yang diunduh pengunjung saat mengklik tombol <strong>"Download Pricelist"</strong> di landing page.
+            </p>
+          </div>
+          {pdfUrl && (
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs text-[#D90429] hover:underline shrink-0 bg-[var(--admin-accent-bg)] px-3 py-1.5 rounded-lg border border-[var(--admin-accent)]/20 font-medium"
+            >
+              <FiExternalLink size={13} /> Buka File Saat Ini
+            </a>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+            className="hidden"
+          />
+          <button
+            type="button"
+            disabled={uploadingPdf}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--admin-accent)] text-white text-xs font-medium hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+          >
+            {uploadingPdf ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Mengunggah file...
+              </>
+            ) : (
+              <>
+                <FiUploadCloud size={15} /> Upload File PDF Baru
+              </>
+            )}
+          </button>
+
+          <span className="text-xs text-[var(--admin-text-muted)] text-center sm:text-left">atau isi URL file langsung:</span>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={pdfUrl}
+              onChange={(e) => {
+                setPdfUrl(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="https://... atau /PriceGuideSnapHub.id.pdf"
+              className={inputCls}
+            />
+            {pdfUrl !== '/PriceGuideSnapHub.id.pdf' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPdfUrl('/PriceGuideSnapHub.id.pdf');
+                  setDirty(true);
+                  toast('Direset ke file bawaan, klik Simpan untuk menerapkan');
+                }}
+                className="shrink-0 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] px-3 py-2 rounded-lg border border-[var(--admin-border)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer"
+                title="Reset ke bawaan"
+              >
+                Reset Default
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-[var(--admin-text-muted)] mt-1.5">
+            Bisa berupa file PDF yang diunggah, link Google Drive, Canva, atau file statis lokal (<code>/PriceGuideSnapHub.id.pdf</code>).
+          </p>
+        </div>
+      </div>
+
       {/* Package tabs */}
       <div className="flex flex-wrap gap-2">
         {packages.map((p) => (
           <button
             key={p.id}
             onClick={() => setActiveId(p.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer ${
               activeId === p.id
                 ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] border-[var(--admin-accent)]/30'
                 : 'text-[var(--admin-text-muted)] border-[var(--admin-border)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)]'
@@ -176,7 +312,7 @@ const AdminPricelist = () => {
           </h4>
           <button
             onClick={resetPkg}
-            className="flex items-center gap-1.5 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors"
+            className="flex items-center gap-1.5 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors cursor-pointer"
           >
             <FiRotateCcw size={12} /> Kembalikan bawaan
           </button>
@@ -193,7 +329,7 @@ const AdminPricelist = () => {
               />
               <button
                 onClick={() => removeRow(i)}
-                className="sm:order-last p-2 rounded-lg text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                className="sm:order-last p-2 rounded-lg text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                 title="Hapus baris"
               >
                 <FiTrash2 size={15} />
@@ -222,7 +358,7 @@ const AdminPricelist = () => {
 
         <button
           onClick={addRow}
-          className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-[var(--admin-border)] text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
+          className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-[var(--admin-border)] text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer"
         >
           <FiPlus size={14} /> Tambah baris harga
         </button>
@@ -235,7 +371,7 @@ const AdminPricelist = () => {
           </h4>
           <button
             onClick={resetTnc}
-            className="flex items-center gap-1.5 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors"
+            className="flex items-center gap-1.5 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors cursor-pointer"
           >
             <FiRotateCcw size={12} /> Kembalikan bawaan
           </button>
@@ -256,7 +392,7 @@ const AdminPricelist = () => {
               />
               <button
                 onClick={() => removeTnc(i)}
-                className="shrink-0 p-2 rounded-lg text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                className="shrink-0 p-2 rounded-lg text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                 title="Hapus poin"
               >
                 <FiTrash2 size={15} />
@@ -267,7 +403,7 @@ const AdminPricelist = () => {
 
         <button
           onClick={addTnc}
-          className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-[var(--admin-border)] text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
+          className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-[var(--admin-border)] text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer"
         >
           <FiPlus size={14} /> Tambah poin
         </button>
@@ -278,7 +414,7 @@ const AdminPricelist = () => {
         <button
           onClick={handleSave}
           disabled={saving || !dirty}
-          className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           <FiSave size={14} /> {saving ? 'Menyimpan...' : 'Simpan Pricelist'}
         </button>

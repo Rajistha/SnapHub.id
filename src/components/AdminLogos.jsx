@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { FiTrash2, FiUpload, FiImage, FiPlus, FiX } from 'react-icons/fi';
-import { motion, AnimatePresence } from 'framer-motion';
+// framer-motion removed for performance
 
 const AdminLogos = () => {
   const [logos, setLogos] = useState([]);
@@ -222,9 +222,7 @@ const AdminLogos = () => {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {logos.map((logo) => (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
+            <div
               key={logo.id}
               className="relative group aspect-video bg-white/10 dark:bg-black/10 border border-[var(--admin-border)] rounded-xl overflow-hidden flex items-center justify-center p-4"
             >
@@ -258,27 +256,21 @@ const AdminLogos = () => {
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
 
       {/* Add Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
+      {isModalOpen && (
           <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               onClick={closeAddModal}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/75"
             />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            <div
               className="relative bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 w-full max-w-md shadow-2xl"
+              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
             >
               <div className="flex justify-between items-center mb-5">
                 <h3 className="text-lg font-bold text-[var(--admin-text-main)]">
@@ -375,27 +367,20 @@ const AdminLogos = () => {
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+      )}
 
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {logoToDelete && (
+      {logoToDelete && (
           <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               onClick={() => setLogoToDelete(null)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/75"
             />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            <div
               className="relative bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center"
+              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
             >
               <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
                 <FiTrash2 size={32} />
@@ -420,10 +405,9 @@ const AdminLogos = () => {
                   Hapus
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
 };

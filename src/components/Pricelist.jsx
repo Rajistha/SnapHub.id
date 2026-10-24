@@ -48,6 +48,7 @@ const Pricelist = () => {
   const [packages, setPackages] = useState(DEFAULT_PACKAGES);
   const [tnc, setTnc] = useState(DEFAULT_TNC);
   const [activeTab, setActiveTab] = useState(DEFAULT_PACKAGES[0].id);
+  const [pdfUrl, setPdfUrl] = useState('/PriceGuideSnapHub.id.pdf');
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
 
@@ -62,6 +63,7 @@ const Pricelist = () => {
         if (!active || !data?.value) return;
         if (data.value.packages) setPackages(mergePackages(data.value.packages));
         if (Array.isArray(data.value.tnc) && data.value.tnc.length > 0) setTnc(data.value.tnc);
+        if (data.value.pdfUrl) setPdfUrl(data.value.pdfUrl);
       });
     return () => {
       active = false;
@@ -248,8 +250,10 @@ const Pricelist = () => {
           className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-10"
         >
           <motion.a
-            href="/PriceGuideSnapHub.id.pdf"
-            download="PriceGuideSnapHub.pdf"
+            href={pdfUrl || '/PriceGuideSnapHub.id.pdf'}
+            download={pdfUrl?.startsWith('http') ? undefined : "PriceGuideSnapHub.pdf"}
+            target={pdfUrl?.startsWith('http') ? "_blank" : undefined}
+            rel="noopener noreferrer"
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             className="btn-outline w-[240px] justify-center"

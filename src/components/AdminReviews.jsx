@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { FiTrash2, FiPlus, FiX, FiStar, FiEdit2, FiChevronDown } from 'react-icons/fi';
-import { motion, AnimatePresence } from 'framer-motion';
+// framer-motion removed for performance
 import { format, parseISO } from 'date-fns';
 
 const AdminReviews = () => {
@@ -205,21 +205,15 @@ const AdminReviews = () => {
       )}
 
       {/* Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
+      {isModalOpen && (
           <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            <div
+              className="absolute inset-0 bg-black/75"
               onClick={handleCloseModal}
             />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            <div
               className="relative bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 w-full max-w-md shadow-2xl"
+              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
             >
               <div className="flex justify-between items-center mb-5">
                 <h3 className="text-lg font-bold text-[var(--admin-text-main)]">
@@ -321,27 +315,20 @@ const AdminReviews = () => {
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+      )}
 
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {reviewToDelete && (
+      {reviewToDelete && (
           <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            <div
+              className="absolute inset-0 bg-black/75"
               onClick={() => setReviewToDelete(null)}
             />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            <div
               className="relative bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
             >
               <h3 className="text-xl font-bold text-[var(--admin-accent)] mb-2">Hapus Review</h3>
               <p className="text-[var(--admin-text-muted)] text-sm mb-6">
@@ -362,10 +349,9 @@ const AdminReviews = () => {
                   {loading ? 'Menghapus...' : 'Ya, Hapus'}
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
 };
