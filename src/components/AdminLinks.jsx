@@ -22,6 +22,14 @@ const PRESET_ICONS = [
   { id: 'link', label: 'Tautan', icon: <FiLink /> }
 ];
 
+const getPublicBioUrl = () => {
+  if (typeof window === 'undefined') return '/links';
+  const host = window.location.hostname;
+  if (host === 'link.snaphub.my.id' || host.startsWith('link.')) return '/';
+  if (host === 'localhost' || host === '127.0.0.1') return '/links';
+  return 'https://link.snaphub.my.id';
+};
+
 const AdminLinks = () => {
   // State
   const [profile, setProfile] = useState(DEFAULT_LINKTREE_PROFILE);
@@ -567,7 +575,7 @@ const AdminLinks = () => {
           </button>
 
           <a
-            href="/links"
+            href={getPublicBioUrl()}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs sm:text-sm font-medium transition-all"

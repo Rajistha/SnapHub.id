@@ -8,6 +8,7 @@ const SesiFoto = lazy(() => import('./pages/SesiFoto'));
 const LiveSesi = lazy(() => import('./pages/LiveSesi'));
 const CrewSesi = lazy(() => import('./pages/CrewSesi'));
 const Linktree = lazy(() => import('./pages/Linktree'));
+const ManageLinks = lazy(() => import('./pages/ManageLinks'));
 import ErrorBoundary from './components/ErrorBoundary';
 
 const PageLoader = () => (
@@ -26,6 +27,12 @@ const isLinkSubdomain = typeof window !== 'undefined' && (
 const isAppSubdomain = typeof window !== 'undefined' && (
   window.location.hostname === 'app.snaphub.my.id' ||
   window.location.hostname.startsWith('app.')
+);
+
+// Deteksi apakah sedang diakses dari subdomain live (e.g. live.snaphub.my.id)
+const isLiveSubdomain = typeof window !== 'undefined' && (
+  window.location.hostname === 'live.snaphub.my.id' ||
+  window.location.hostname.startsWith('live.')
 );
 
 // Scroll ke elemen #hash saat navigasi (fix React Router tidak handle hash anchor)
@@ -60,26 +67,48 @@ function App() {
       <ScrollToHash />
       <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* Jika diakses via subdomain, root ('/') langsung membuka halaman terkait */}
-        <Route
-          path="/"
-          element={
-            isLinkSubdomain ? <Linktree /> :
-            isAppSubdomain ? <SesiFoto /> :
-            <Home />
-          }
-        />
-        <Route path="/admin/*" element={<Admin />} />
-        <Route path="/links" element={<Linktree />} />
-        <Route path="/linktree" element={<Navigate to="/links" replace />} />
-        <Route path="/bio" element={<Navigate to="/links" replace />} />
-        <Route path="/sesi" element={<SesiFoto />} />
-        <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
-        <Route path="/live/:slug" element={<LiveSesi />} />
-        <Route path="/crew/:slug" element={<CrewSesi />} />
-        {/* Fallback subdomain: jika ada path tak dikenal di subdomain link atau app */}
-        {isLinkSubdomain && <Route path="*" element={<Linktree />} />}
-        {isAppSubdomain && <Route path="*" element={<SesiFoto />} />}
+        {/* Subdomain live.snaphub.my.id: langsung membuka LiveSesi via /:slug tanpa /live */}
+        {isLiveSubdomain ? (
+          <>
+            <Route path="/:slug" element={<LiveSesi />} />
+            <Route path="/live/:slug" element={<LiveSesi />} />
+            <Route path="/" element={<Navigate to="https://snaphub.my.id" replace />} />
+            <Route path="*" element={<LiveSesi />} />
+          </>
+        ) : (
+          <>
+            {/* Jika diakses via subdomain link, /admin atau /manage langsung membuka ManageLinks */}
+            {isLinkSubdomain && (
+              <>
+                <Route path="/admin" element={<ManageLinks />} />
+                <Route path="/admin/*" element={<ManageLinks />} />
+                <Route path="/manage" element={<ManageLinks />} />
+                <Route path="/kelola" element={<ManageLinks />} />
+              </>
+            )}
+
+            {/* Jika diakses via subdomain, root ('/') langsung membuka halaman terkait */}
+            <Route
+              path="/"
+              element={
+                isLinkSubdomain ? <Linktree /> :
+                isAppSubdomain ? <SesiFoto /> :
+                <Home />
+              }
+            />
+            <Route path="/admin/*" element={<Admin />} />
+            <Route path="/links" element={<Linktree />} />
+            <Route path="/linktree" element={<Navigate to="/links" replace />} />
+            <Route path="/bio" element={<Navigate to="/links" replace />} />
+            <Route path="/sesi" element={<SesiFoto />} />
+            <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
+            <Route path="/live/:slug" element={<LiveSesi />} />
+            <Route path="/crew/:slug" element={<CrewSesi />} />
+            {/* Fallback subdomain */}
+            {isLinkSubdomain && <Route path="*" element={<Linktree />} />}
+            {isAppSubdomain && <Route path="*" element={<SesiFoto />} />}
+          </>
+        )}
       </Routes>
       </Suspense>
       </ErrorBoundary>

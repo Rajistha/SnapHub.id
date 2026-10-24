@@ -32,9 +32,19 @@ const getAdminUrl = () => {
   return '/admin';
 };
 
+const getLiveBaseUrl = () => {
+  if (typeof window === 'undefined') return '';
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return `${window.location.origin}/live`;
+  }
+  return 'https://live.snaphub.my.id';
+};
+
 const liveUrl = (event) => {
   const slug = slugify(event.name);
-  return `${getAppBaseUrl()}/live/${slug ? `${slug}-` : ''}${event.share_token}`;
+  const tokenStr = slug ? `${slug}-${event.share_token}` : event.share_token;
+  return `${getLiveBaseUrl()}/${tokenStr}`;
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];

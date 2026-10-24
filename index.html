@@ -55,8 +55,11 @@
   <!-- Halaman live customer: minta data segera, paralel dengan unduhan JavaScript -->
   <script>
     (function () {
-      var m = location.pathname.match(/^\/live\/([^/]+)/);
-      if (!m) return;
+      var isLiveHost = location.hostname === 'live.snaphub.my.id' || location.hostname.startsWith('live.');
+      var m = isLiveHost
+        ? location.pathname.match(/^\/([^/]+)/)
+        : location.pathname.match(/^\/live\/([^/]+)/);
+      if (!m || !m[1]) return;
       var token = m[1].split('-').pop();
       var p = fetch('%VITE_SUPABASE_URL%/rest/v1/rpc/get_live_event', {
         method: 'POST',

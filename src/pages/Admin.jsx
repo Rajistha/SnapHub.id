@@ -217,7 +217,14 @@ const Admin = () => {
       id: 'app',
       title: 'Apps',
       items: [
-        { id: 'links', label: 'Links', icon: <FiLink size={18} /> },
+        { 
+          id: 'links', 
+          label: 'Links', 
+          icon: <FiLink size={18} />, 
+          isLink: true, 
+          to: isLocalhost ? '/admin/links' : 'https://link.snaphub.my.id/admin',
+          isExternal: !isLocalhost 
+        },
         { 
           id: 'sesi', 
           label: 'Sessions', 
@@ -229,6 +236,21 @@ const Admin = () => {
       ]
     }
   ];
+
+  const handleAppNav = async (e, targetUrl) => {
+    if (isLocalhost) return;
+    e.preventDefault();
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession?.access_token && currentSession?.refresh_token) {
+        window.location.href = `${targetUrl}#access_token=${encodeURIComponent(currentSession.access_token)}&refresh_token=${encodeURIComponent(currentSession.refresh_token)}&token_type=bearer`;
+        return;
+      }
+    } catch (err) {
+      console.warn('SSO navigation handshake error:', err);
+    }
+    window.location.href = targetUrl;
+  };
 
   const getActiveTabLabel = () => {
     if (activeTab === 'dashboard') return 'Dashboard';
@@ -346,6 +368,7 @@ const Admin = () => {
                         <a
                           key={tab.id}
                           href={tab.to}
+                          onClick={(e) => handleAppNav(e, tab.to)}
                           className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent cursor-pointer"
                         >
                           {tab.icon}
