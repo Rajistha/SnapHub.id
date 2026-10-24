@@ -67,48 +67,51 @@ function App() {
       <ScrollToHash />
       <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* Subdomain live.snaphub.my.id: langsung membuka LiveSesi via /:slug tanpa /live */}
-        {isLiveSubdomain ? (
+        {/* 1. Subdomain live.snaphub.my.id: customer live view tanpa /live */}
+        {isLiveSubdomain && (
           <>
             <Route path="/:slug" element={<LiveSesi />} />
             <Route path="/live/:slug" element={<LiveSesi />} />
             <Route path="/" element={<Navigate to="https://snaphub.my.id" replace />} />
             <Route path="*" element={<LiveSesi />} />
           </>
-        ) : (
-          <>
-            {/* Jika diakses via subdomain link, /admin atau /manage langsung membuka ManageLinks */}
-            {isLinkSubdomain && (
-              <>
-                <Route path="/admin" element={<ManageLinks />} />
-                <Route path="/admin/*" element={<ManageLinks />} />
-                <Route path="/manage" element={<ManageLinks />} />
-                <Route path="/kelola" element={<ManageLinks />} />
-              </>
-            )}
+        )}
 
-            {/* Jika diakses via subdomain, root ('/') langsung membuka halaman terkait */}
-            <Route
-              path="/"
-              element={
-                isLinkSubdomain ? <Linktree /> :
-                isAppSubdomain ? <SesiFoto /> :
-                <Home />
-              }
-            />
-            <Route path="/admin/*" element={<Admin />} />
-            <Route path="/links" element={<Linktree />} />
-            <Route path="/linktree" element={<Navigate to="/links" replace />} />
-            <Route path="/bio" element={<Navigate to="/links" replace />} />
+        {/* 2. Subdomain link.snaphub.my.id: Bio / Linktree publik untuk pengunjung */}
+        {isLinkSubdomain && (
+          <>
+            <Route path="/" element={<Linktree />} />
+            <Route path="*" element={<Linktree />} />
+          </>
+        )}
+
+        {/* 3. Subdomain app.snaphub.my.id: Aplikasi internal (Kelola Link & Sesi Foto) */}
+        {isAppSubdomain && (
+          <>
+            <Route path="/links" element={<ManageLinks />} />
+            <Route path="/admin/links" element={<ManageLinks />} />
+            <Route path="/kelola" element={<ManageLinks />} />
+            <Route path="/linktree" element={<ManageLinks />} />
             <Route path="/sesi" element={<SesiFoto />} />
             <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
             <Route path="/live/:slug" element={<LiveSesi />} />
             <Route path="/crew/:slug" element={<CrewSesi />} />
-            {/* Fallback subdomain */}
-            {isLinkSubdomain && <Route path="*" element={<Linktree />} />}
-            {isAppSubdomain && <Route path="*" element={<SesiFoto />} />}
+            <Route path="/" element={<SesiFoto />} />
+            <Route path="*" element={<SesiFoto />} />
           </>
         )}
+
+        {/* 4. Domain Utama snaphub.my.id & Localhost */}
+        <Route path="/" element={<Home />} />
+        <Route path="/admin/*" element={<Admin />} />
+        <Route path="/admin/links" element={<ManageLinks />} />
+        <Route path="/links" element={<Linktree />} />
+        <Route path="/linktree" element={<Navigate to="/links" replace />} />
+        <Route path="/bio" element={<Navigate to="/links" replace />} />
+        <Route path="/sesi" element={<SesiFoto />} />
+        <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
+        <Route path="/live/:slug" element={<LiveSesi />} />
+        <Route path="/crew/:slug" element={<CrewSesi />} />
       </Routes>
       </Suspense>
       </ErrorBoundary>

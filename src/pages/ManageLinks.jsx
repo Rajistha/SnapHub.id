@@ -7,7 +7,7 @@ import AdminLinks from '../components/AdminLinks';
 const getAdminUrl = () => {
   if (typeof window === 'undefined') return '/admin';
   const host = window.location.hostname;
-  if (host === 'link.snaphub.my.id' || host.startsWith('link.')) {
+  if (host.includes('snaphub.my.id')) {
     return 'https://snaphub.my.id/admin';
   }
   return '/admin';
@@ -16,8 +16,8 @@ const getAdminUrl = () => {
 const getBioUrl = () => {
   if (typeof window === 'undefined') return '/links';
   const host = window.location.hostname;
-  if (host === 'link.snaphub.my.id' || host.startsWith('link.')) {
-    return '/';
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return '/links';
   }
   return 'https://link.snaphub.my.id';
 };
@@ -147,7 +147,7 @@ const ManageLinks = () => {
             </div>
             <div>
               <h2 className="text-sm font-bold text-[var(--admin-text-main)] leading-none">Links</h2>
-              <span className="text-[10px] text-[var(--admin-text-muted)] font-mono">link.snaphub.my.id</span>
+              <span className="text-[10px] text-[var(--admin-text-muted)] font-mono">app.snaphub.my.id/links</span>
             </div>
           </div>
         </div>

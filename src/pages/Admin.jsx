@@ -222,7 +222,7 @@ const Admin = () => {
           label: 'Links', 
           icon: <FiLink size={18} />, 
           isLink: true, 
-          to: isLocalhost ? '/admin/links' : 'https://link.snaphub.my.id/admin',
+          to: isLocalhost ? '/admin/links' : 'https://app.snaphub.my.id/links',
           isExternal: !isLocalhost 
         },
         { 
@@ -230,7 +230,7 @@ const Admin = () => {
           label: 'Sessions', 
           icon: <FiCamera size={18} />, 
           isLink: true, 
-          to: isLocalhost ? '/sesi' : 'https://app.snaphub.my.id',
+          to: isLocalhost ? '/sesi' : 'https://app.snaphub.my.id/sesi',
           isExternal: !isLocalhost 
         },
       ]
