@@ -1,176 +1,213 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { 
-  FiPlus, FiTrash2, FiEdit2, 
-  FiExternalLink, FiEye, FiEyeOff, FiSave, FiUpload, 
-  FiImage, FiSearch, FiCheck, FiX, FiLink, FiCamera, 
-  FiCalendar, FiTag, FiStar, FiGlobe, FiRefreshCw,
-  FiShare2, FiSettings, FiSliders, FiChevronDown, FiFolder, FiList, FiBarChart2
+import {
+  FiPlus, FiTrash2, FiEdit2, FiEye, FiEyeOff, FiUpload, FiSearch, FiCheck,
+  FiLink, FiCamera, FiCalendar, FiTag, FiStar, FiGlobe, FiShare2, FiSettings,
+  FiImage, FiFolder,
 } from 'react-icons/fi';
-import { DEFAULT_LINKTREE_PROFILE, DEFAULT_LINKS, LINK_CATEGORIES } from '../lib/linktreeDefaults';
+import { supabase } from '../lib/supabase';
+import { DEFAULT_LINKTREE_PROFILE, DEFAULT_LINKS } from '../lib/linktreeDefaults';
+import Modal from './ui/Modal';
 
-// Preset icon list for links without image logo
 const PRESET_ICONS = [
-  { id: 'camera', label: 'Kamera', icon: <FiCamera /> },
-  { id: 'calendar', label: 'Jadwal', icon: <FiCalendar /> },
-  { id: 'image', label: 'Galeri', icon: <FiImage /> },
-  { id: 'ticket', label: 'Pricelist', icon: <FiTag /> },
-  { id: 'star', label: 'Unggulan', icon: <FiStar /> },
-  { id: 'globe', label: 'Website', icon: <FiGlobe /> },
-  { id: 'whatsapp', label: 'WhatsApp', icon: <FiShare2 /> },
-  { id: 'link', label: 'Tautan', icon: <FiLink /> }
+  { id: 'camera', label: 'Kamera', Icon: FiCamera },
+  { id: 'calendar', label: 'Jadwal', Icon: FiCalendar },
+  { id: 'image', label: 'Galeri', Icon: FiImage },
+  { id: 'ticket', label: 'Pricelist', Icon: FiTag },
+  { id: 'star', label: 'Unggulan', Icon: FiStar },
+  { id: 'globe', label: 'Website', Icon: FiGlobe },
+  { id: 'whatsapp', label: 'WhatsApp', Icon: FiShare2 },
+  { id: 'link', label: 'Tautan', Icon: FiLink },
 ];
 
-const getPublicBioUrl = () => {
-  if (typeof window === 'undefined') return '/links';
-  const host = window.location.hostname;
-  if (host === 'link.snaphub.my.id' || host.startsWith('link.')) return '/';
-  if (host === 'localhost' || host === '127.0.0.1') return '/links';
-  return 'https://link.snaphub.my.id';
+const SOCIALS = [
+  { platform: 'whatsapp', label: 'WhatsApp', placeholder: 'https://wa.me/62…' },
+  { platform: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/…' },
+  { platform: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@…' },
+  { platform: 'website', label: 'Website (opsional)', placeholder: 'https://snaphub.my.id' },
+];
+
+const ALLOWED_IMAGE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+
+const EMPTY_FORM = {
+  title: '', subtitle: '', url: '', badge: '', isHighlighted: false, openNewTab: true, isActive: true,
+  logoUrl: '', clientLogoId: '', icon: 'camera', sectionId: '',
 };
 
+const isHeader = (item) => item.type === 'header';
+
+// Url valid: http(s), mailto, tel, atau path internal. Tolak javascript:/data:.
+const isValidUrl = (value) => {
+  const v = value.trim();
+  return v.startsWith('/') || v.startsWith('#') || /^(https?:|mailto:|tel:)/i.test(v);
+};
+
+// Pindahkan satu item (link) atau satu blok section (header + link di bawahnya) naik/turun.
+const moveItem = (list, id, dir) => {
+  const idx = list.findIndex((l) => l.id === id);
+  if (idx === -1) return list;
+  const blockEnd = (start) => {
+    let end = start + 1;
+    while (end < list.length && !isHeader(list[end])) end += 1;
+    return end;
+  };
+  const copy = [...list];
+
+  if (!isHeader(list[idx])) {
+    const target = idx + dir;
+    if (target < 0 || target >= list.length) return list;
+    [copy[idx], copy[target]] = [copy[target], copy[idx]];
+    return copy;
+  }
+
+  const headers = list.map((l, i) => (isHeader(l) ? i : -1)).filter((i) => i >= 0);
+  const pos = headers.indexOf(idx);
+  const neighbour = headers[pos + dir];
+  if (neighbour === undefined) return list;
+  const [aStart, aEnd] = dir < 0 ? [neighbour, blockEnd(neighbour)] : [idx, blockEnd(idx)];
+  const [bStart, bEnd] = dir < 0 ? [idx, blockEnd(idx)] : [neighbour, blockEnd(neighbour)];
+  return [...list.slice(0, aStart), ...list.slice(bStart, bEnd), ...list.slice(aStart, aEnd), ...list.slice(bEnd)];
+};
+
+const Field = ({ id, label, hint, children }) => (
+  <div>
+    <label htmlFor={id} className="ui-label">{label}</label>
+    {children}
+    {hint && <p className="ui-hint">{hint}</p>}
+  </div>
+);
+
+const Toggle = ({ checked, onChange, label, hint }) => (
+  <label className="flex items-start gap-3 cursor-pointer py-1">
+    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-1 w-4 h-4 accent-[var(--admin-primary)]" />
+    <span className="text-sm">
+      <span className="font-medium">{label}</span>
+      {hint && <span className="block text-[var(--admin-text-muted)]">{hint}</span>}
+    </span>
+  </label>
+);
+
 const AdminLinks = () => {
-  // State
   const [profile, setProfile] = useState(DEFAULT_LINKTREE_PROFILE);
   const [links, setLinks] = useState(DEFAULT_LINKS);
+  const [clicks, setClicks] = useState({});
   const [clientLogos, setClientLogos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('Semua');
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [search, setSearch] = useState('');
+  const [sectionFilter, setSectionFilter] = useState('all');
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingLink, setEditingLink] = useState(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-
-  // Section / Header State
-  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
-  const [editingSection, setEditingSection] = useState(null);
-  const [formSectionTitle, setFormSectionTitle] = useState('');
-  const [formSectionActive, setFormSectionActive] = useState(true);
-  const [formSectionType, setFormSectionType] = useState('normal'); // 'normal' | 'dropdown'
-  const [formSectionDefaultOpen, setFormSectionDefaultOpen] = useState(true);
-
-  // Drag and Drop State
-  const [draggedId, setDraggedId] = useState(null);
-  const [dragOverId, setDragOverId] = useState(null);
-  const touchItemIdRef = useRef(null);
-
-  // Form State
-  const [formTitle, setFormTitle] = useState('');
-  const [formSubtitle, setFormSubtitle] = useState('');
-  const [formUrl, setFormUrl] = useState('');
-  const [formCategory, setFormCategory] = useState('Event & Kegiatan');
-  const [formBadge, setFormBadge] = useState('');
-  const [formIsHighlighted, setFormIsHighlighted] = useState(false);
-  const [formIsOpenNewTab, setFormIsOpenNewTab] = useState(true);
-  const [formIsActive, setFormIsActive] = useState(true);
-
-  // Logo selection mode: 'client_logo' | 'upload' | 'url' | 'icon'
-  const [logoTab, setLogoTab] = useState('client_logo');
-  const [selectedLogoUrl, setSelectedLogoUrl] = useState('');
-  const [selectedClientLogoId, setSelectedClientLogoId] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState('camera');
-  const [clientLogoSearch, setClientLogoSearch] = useState('');
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileDraft, setProfileDraft] = useState(null);
+  const [linkModal, setLinkModal] = useState(null); // { id|null }
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
+  const [logoTab, setLogoTab] = useState('client');
+  const [logoSearch, setLogoSearch] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [sectionModal, setSectionModal] = useState(null); // { id|null }
+  const [sectionForm, setSectionForm] = useState({ title: '', sectionType: 'normal', defaultOpen: true, isActive: true });
+  const [toDelete, setToDelete] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Load data from Supabase
-  useEffect(() => {
-    loadAllData();
-  }, []);
+  // Drag & drop urutan (mouse di seluruh baris, sentuhan lewat gagang)
+  const [draggedId, setDraggedId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+  const touchIdRef = useRef(null);
 
-  const loadAllData = async () => {
+  /* ── Muat data ─────────────────────────────────────────── */
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch site_settings with key 'linktree'
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'linktree')
-        .maybeSingle();
+      const [settings, logos, clickRows] = await Promise.all([
+        supabase.from('site_settings').select('value').eq('key', 'linktree').maybeSingle(),
+        supabase.from('client_logos').select('id, client_name, logo_url').order('created_at', { ascending: false }),
+        supabase.from('link_clicks').select('link_id, clicks'),
+      ]);
 
-      if (settingsError && settingsError.code !== 'PGRST116') {
-        console.warn('Gagal load linktree settings:', settingsError);
+      const value = settings.data?.value;
+      if (value?.profile) {
+        const raw = value.profile;
+        const current = Array.isArray(raw.socials) ? raw.socials : [];
+        const merged = DEFAULT_LINKTREE_PROFILE.socials.map((def) => current.find((s) => s.platform === def.platform) || def);
+        const extra = current.filter((s) => !DEFAULT_LINKTREE_PROFILE.socials.some((def) => def.platform === s.platform));
+        setProfile({ ...DEFAULT_LINKTREE_PROFILE, ...raw, socials: [...merged, ...extra], concierge: { ...DEFAULT_LINKTREE_PROFILE.concierge, ...(raw.concierge || {}) } });
       }
-
-      if (settingsData?.value) {
-        if (settingsData.value.profile) {
-          const rawProfile = settingsData.value.profile;
-          const currentSocials = Array.isArray(rawProfile.socials) ? rawProfile.socials : [];
-          // Pastikan semua platform bawaan (whatsapp, instagram, tiktok, website) ada
-          const mergedSocials = DEFAULT_LINKTREE_PROFILE.socials.map(def => {
-            const found = currentSocials.find(s => s.platform === def.platform);
-            return found || def;
-          });
-          const extra = currentSocials.filter(s => !DEFAULT_LINKTREE_PROFILE.socials.some(def => def.platform === s.platform));
-
-          setProfile({
-            ...DEFAULT_LINKTREE_PROFILE,
-            ...rawProfile,
-            socials: [...mergedSocials, ...extra],
-            concierge: {
-              ...DEFAULT_LINKTREE_PROFILE.concierge,
-              ...(rawProfile.concierge || {})
-            }
-          });
-        }
-        if (Array.isArray(settingsData.value.links) && settingsData.value.links.length > 0) {
-          setLinks(settingsData.value.links);
-        }
-      }
-
-      // 2. Fetch Client Logos from client_logos table
-      const { data: logosData, error: logosError } = await supabase
-        .from('client_logos')
-        .select('id, client_name, logo_url, instagram_url')
-        .order('created_at', { ascending: false });
-
-      if (logosError) {
-        console.warn('Gagal load client logos:', logosError);
-      } else if (logosData) {
-        setClientLogos(logosData);
-      }
+      if (Array.isArray(value?.links) && value.links.length > 0) setLinks(value.links);
+      if (logos.data) setClientLogos(logos.data);
+      if (clickRows.data) setClicks(Object.fromEntries(clickRows.data.map((r) => [r.link_id, Number(r.clicks)])));
     } catch (err) {
-      console.error('Error fetching admin links data:', err);
-      toast.error('Gagal memuat beberapa data linktree');
+      console.error(err);
+      toast.error('Gagal memuat sebagian data link');
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Peringatan bila meninggalkan halaman dengan perubahan yang belum disimpan.
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  const edit = (nextLinks, nextProfile) => {
+    if (nextLinks) setLinks(nextLinks);
+    if (nextProfile) setProfile(nextProfile);
+    setDirty(true);
   };
 
-  // Save current profile & links to Supabase
-  const persistChanges = async (newLinks = links, newProfile = profile) => {
+  const save = async () => {
     setSaving(true);
     try {
-      const payload = {
-        key: 'linktree',
-        value: {
-          profile: newProfile,
-          links: newLinks,
-          updated_at: new Date().toISOString()
-        }
-      };
-
+      // Hitungan klik disimpan di tabel terpisah; buang sisa field lama agar tidak menimpa.
+      const cleanLinks = links.map(({ clicks: _legacy, ...rest }) => rest);
       const { error } = await supabase
         .from('site_settings')
-        .upsert(payload, { onConflict: 'key' });
-
+        .upsert({ key: 'linktree', value: { profile, links: cleanLinks, updated_at: new Date().toISOString() } }, { onConflict: 'key' });
       if (error) throw error;
-      toast.success('Perubahan berhasil disimpan ke website!');
+      try {
+        localStorage.removeItem('snaphub_linktree_cache_v1');
+      } catch {
+        /* abaikan */
+      }
+      setDirty(false);
+      toast.success('Tersimpan. Halaman bio sudah diperbarui.');
     } catch (err) {
-      console.error('Save error:', err);
-      toast.error('Gagal menyimpan: ' + (err.message || 'Cek koneksi internet'));
+      console.error(err);
+      toast.error(`Gagal menyimpan: ${err.message || 'cek koneksi internet'}`);
     } finally {
       setSaving(false);
     }
   };
 
-  // Reordering links via Drag & Drop
-  const handleDragStart = (e, id) => {
+  const reorder = (fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    const from = links.findIndex((l) => l.id === fromId);
+    const to = links.findIndex((l) => l.id === toId);
+    if (from === -1 || to === -1) return;
+    const next = [...links];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    edit(next);
+  };
+
+  const endDrag = () => {
+    touchIdRef.current = null;
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const onDragStart = (e, id) => {
     if (e.target.closest('button, input, select, textarea, a')) {
       e.preventDefault();
       return;
@@ -180,1588 +217,517 @@ const AdminLinks = () => {
     e.dataTransfer.setData('text/plain', id);
   };
 
-  const handleDragOver = (e, id) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverId !== id) {
-      setDragOverId(id);
-    }
-  };
-
-  const handleDragLeave = (e, id) => {
-    if (dragOverId === id) {
-      setDragOverId(null);
-    }
-  };
-
-  const handleDrop = (e, targetId) => {
-    e.preventDefault();
-    if (!draggedId || draggedId === targetId) {
-      setDraggedId(null);
-      setDragOverId(null);
-      return;
-    }
-
-    const fromIndex = links.findIndex(l => l.id === draggedId);
-    const toIndex = links.findIndex(l => l.id === targetId);
-
-    if (fromIndex !== -1 && toIndex !== -1) {
-      const updated = [...links];
-      const [movedItem] = updated.splice(fromIndex, 1);
-      updated.splice(toIndex, 0, movedItem);
-      setLinks(updated);
-      persistChanges(updated, profile);
-      toast.success('Urutan tautan berhasil dipindahkan!');
-    }
-
-    setDraggedId(null);
-    setDragOverId(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedId(null);
-    setDragOverId(null);
-  };
-
-  // Touch drag support for mobile devices
-  const handleTouchStart = (e, id) => {
-    touchItemIdRef.current = id;
-    setDraggedId(id);
-  };
-
-  const handleTouchMove = (e) => {
-    if (!touchItemIdRef.current) return;
+  const onTouchMove = (e) => {
+    if (!touchIdRef.current) return;
     const touch = e.touches[0];
-    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
-    const itemContainer = targetEl?.closest('[data-link-id]');
-    if (itemContainer) {
-      const overId = itemContainer.getAttribute('data-link-id');
-      if (overId && overId !== touchItemIdRef.current) {
-        setDragOverId(overId);
-      }
-    }
+    const overId = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-link-id]')?.getAttribute('data-link-id');
+    if (overId && overId !== touchIdRef.current) setDragOverId(overId);
   };
 
-  const handleTouchEnd = () => {
-    if (touchItemIdRef.current && dragOverId && touchItemIdRef.current !== dragOverId) {
-      const fromIndex = links.findIndex(l => l.id === touchItemIdRef.current);
-      const toIndex = links.findIndex(l => l.id === dragOverId);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const updated = [...links];
-        const [movedItem] = updated.splice(fromIndex, 1);
-        updated.splice(toIndex, 0, movedItem);
-        setLinks(updated);
-        persistChanges(updated, profile);
-        toast.success('Urutan tautan berhasil dipindahkan!');
-      }
-    }
-    touchItemIdRef.current = null;
-    setDraggedId(null);
-    setDragOverId(null);
+  const onTouchEnd = () => {
+    reorder(touchIdRef.current, dragOverId);
+    endDrag();
   };
 
-  // Toggle active status directly
-  const toggleActive = (id) => {
-    const updated = links.map(l => l.id === id ? { ...l, isActive: !l.isActive } : l);
-    setLinks(updated);
-    persistChanges(updated, profile);
-    const linkObj = links.find(l => l.id === id);
-    toast.success(`Link "${linkObj?.title}" ${!linkObj?.isActive ? 'diaktifkan' : 'dinonaktifkan'}`);
+  // Gagang juga bisa dioperasikan keyboard: panah atas/bawah memindahkan item.
+  const onHandleKey = (e, id) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    edit(moveItem(links, id, e.key === 'ArrowUp' ? -1 : 1));
   };
 
-  // Reset click count
-  const resetClicks = (id) => {
-    const updated = links.map(l => l.id === id ? { ...l, clicks: 0 } : l);
-    setLinks(updated);
-    persistChanges(updated, profile);
-    toast.success('Jumlah klik di-reset');
+  const discard = async () => {
+    setDirty(false);
+    await load();
   };
 
-  // Delete Link
-  const handleDeleteLink = (id) => {
-    const updated = links.filter(l => l.id !== id);
-    setLinks(updated);
-    persistChanges(updated, profile);
-    setDeleteConfirmId(null);
-    toast.success('Link berhasil dihapus');
-  };
+  /* ── Turunan ───────────────────────────────────────────── */
+  const sections = useMemo(() => links.filter(isHeader), [links]);
 
-  // Open modal for Add or Edit
-  const openModal = (link = null) => {
+  // Setiap link milik section terdekat di atasnya (sama seperti tampilan publik).
+  const rows = useMemo(() => {
+    let currentId = '';
+    return links.map((item) => {
+      if (isHeader(item)) currentId = item.id;
+      return { item, sectionId: isHeader(item) ? item.id : currentId };
+    });
+  }, [links]);
+
+  const visibleRows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return rows.filter(({ item, sectionId }) => {
+      if (sectionFilter !== 'all' && sectionId !== sectionFilter) return false;
+      if (!needle) return true;
+      return [item.title, item.subtitle, item.url].some((v) => (v || '').toLowerCase().includes(needle));
+    });
+  }, [rows, search, sectionFilter]);
+
+  const linkItems = links.filter((l) => !isHeader(l));
+  const activeCount = linkItems.filter((l) => l.isActive !== false).length;
+  const totalClicks = Object.values(clicks).reduce((a, b) => a + b, 0);
+
+  /* ── Link ──────────────────────────────────────────────── */
+  const openLinkModal = (link = null) => {
+    setFormError('');
+    setLogoSearch('');
     if (link) {
-      setEditingLink(link);
-      setFormTitle(link.title || '');
-      setFormSubtitle(link.subtitle || '');
-      setFormUrl(link.url || '');
-      setFormCategory(link.category || 'Event & Kegiatan');
-      setFormBadge(link.badge || '');
-      setFormIsHighlighted(!!link.isHighlighted);
-      setFormIsOpenNewTab(link.openNewTab !== false);
-      setFormIsActive(link.isActive !== false);
+      const owner = rows.find((r) => r.item.id === link.id)?.sectionId || '';
+      setForm({
+        title: link.title || '', subtitle: link.subtitle || '', url: link.url || '', badge: link.badge || '',
+        isHighlighted: !!link.isHighlighted, openNewTab: link.openNewTab !== false, isActive: link.isActive !== false,
+        logoUrl: link.logoUrl || '', clientLogoId: link.clientLogoId || '', icon: link.icon || 'camera', sectionId: owner,
+      });
+      setLogoTab(link.clientLogoId ? 'client' : link.logoUrl ? 'url' : 'icon');
+      setLinkModal({ id: link.id });
+    } else {
+      setForm({ ...EMPTY_FORM, sectionId: sectionFilter !== 'all' ? sectionFilter : sections[0]?.id || '' });
+      setLogoTab('client');
+      setLinkModal({ id: null });
+    }
+  };
 
-      setSelectedLogoUrl(link.logoUrl || '');
-      setSelectedClientLogoId(link.clientLogoId || '');
-      setSelectedIcon(link.icon || 'camera');
+  const submitLink = (e) => {
+    e.preventDefault();
+    if (!form.title.trim()) return setFormError('Judul wajib diisi.');
+    if (!form.url.trim()) return setFormError('URL tujuan wajib diisi.');
+    if (!isValidUrl(form.url)) return setFormError('URL harus diawali https://, http://, mailto:, tel:, atau / untuk halaman internal.');
+    if (form.logoUrl && !/^https?:\/\//i.test(form.logoUrl)) return setFormError('URL gambar harus diawali https://');
 
-      // Determine initial tab
-      if (link.clientLogoId) {
-        setLogoTab('client_logo');
-      } else if (link.logoUrl) {
-        setLogoTab('url');
-      } else {
-        setLogoTab('icon');
+    const fields = {
+      title: form.title.trim(), subtitle: form.subtitle.trim(), url: form.url.trim(), badge: form.badge.trim().toUpperCase().slice(0, 16),
+      isHighlighted: form.isHighlighted, openNewTab: form.openNewTab, isActive: form.isActive,
+      logoUrl: logoTab === 'icon' ? '' : form.logoUrl, clientLogoId: logoTab === 'client' ? form.clientLogoId : '', icon: form.icon,
+    };
+
+    if (linkModal.id) {
+      edit(links.map((l) => (l.id === linkModal.id ? { ...l, ...fields } : l)));
+    } else {
+      const created = { id: `link_${Date.now()}`, ...fields };
+      // Masuk di akhir section yang dipilih; tanpa section = paling atas.
+      let insertAt = 0;
+      const headerIdx = links.findIndex((l) => l.id === form.sectionId);
+      if (headerIdx !== -1) {
+        insertAt = headerIdx + 1;
+        while (insertAt < links.length && !isHeader(links[insertAt])) insertAt += 1;
       }
-    } else {
-      setEditingLink(null);
-      setFormTitle('');
-      setFormSubtitle('');
-      setFormUrl('');
-      setFormCategory('Event & Kegiatan');
-      setFormBadge('');
-      setFormIsHighlighted(false);
-      setFormIsOpenNewTab(true);
-      setFormIsActive(true);
-
-      setSelectedLogoUrl('');
-      setSelectedClientLogoId('');
-      setSelectedIcon('camera');
-      setLogoTab('client_logo');
+      edit([...links.slice(0, insertAt), created, ...links.slice(insertAt)]);
     }
-    setIsModalOpen(true);
+    setLinkModal(null);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingLink(null);
-  };
-
-  // Handle Logo Upload to Supabase Storage
-  const handleUploadLogoFile = async (e) => {
+  const upload = async (e) => {
     const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
+    const ext = ALLOWED_IMAGE_TYPES[file.type];
+    if (!ext) return toast.error('Format harus PNG, JPG, WebP, atau GIF');
+    if (file.size > 2 * 1024 * 1024) return toast.error('Ukuran logo maksimal 2MB');
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Ukuran logo maksimal 2MB');
-      return;
-    }
-
-    setUploadingLogo(true);
+    setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const fileName = `linktree_logo_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('client-logos')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('client-logos')
-        .getPublicUrl(fileName);
-
-      setSelectedLogoUrl(publicUrl);
-      setSelectedClientLogoId('');
-      toast.success('Logo berhasil diunggah!');
+      const name = `linktree_logo_${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${ext}`;
+      const { error } = await supabase.storage.from('client-logos').upload(name, file, { contentType: file.type });
+      if (error) throw error;
+      const { data } = supabase.storage.from('client-logos').getPublicUrl(name);
+      setForm((f) => ({ ...f, logoUrl: data.publicUrl, clientLogoId: '' }));
+      toast.success('Logo diunggah');
     } catch (err) {
-      console.error('Upload error:', err);
-      toast.error('Gagal mengunggah gambar: ' + (err.message || 'Cek koneksi'));
+      console.error(err);
+      toast.error(`Gagal mengunggah: ${err.message || 'cek koneksi'}`);
     } finally {
-      setUploadingLogo(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setUploading(false);
     }
   };
 
-  // Select a logo from existing Client Logos
-  const handleSelectClientLogo = (client) => {
-    setSelectedClientLogoId(client.id);
-    setSelectedLogoUrl(client.logo_url);
-    // If title is currently blank, propose client name
-    if (!formTitle.trim()) {
-      setFormTitle(client.client_name);
-    }
-    toast.success(`Logo "${client.client_name}" dipilih!`);
+  const resetClicks = async (id) => {
+    const { error } = await supabase.from('link_clicks').delete().eq('link_id', id);
+    if (error) return toast.error('Gagal mereset klik');
+    setClicks((prev) => ({ ...prev, [id]: 0 }));
+    toast.success('Hitungan klik direset');
   };
 
-  // Save Modal Form (Create or Update)
-  const handleSaveModal = (e) => {
+  /* ── Section ───────────────────────────────────────────── */
+  const openSectionModal = (section = null) => {
+    setSectionForm(
+      section
+        ? { title: section.title || '', sectionType: section.sectionType || 'normal', defaultOpen: section.defaultOpen !== false, isActive: section.isActive !== false }
+        : { title: '', sectionType: 'normal', defaultOpen: true, isActive: true }
+    );
+    setSectionModal({ id: section?.id || null });
+  };
+
+  const submitSection = (e) => {
     e.preventDefault();
-
-    if (!formTitle.trim()) {
-      toast.error('Judul link atau nama kegiatan wajib diisi!');
-      return;
-    }
-    if (!formUrl.trim()) {
-      toast.error('URL tujuan wajib diisi!');
-      return;
-    }
-
-    let finalLogoUrl = '';
-    let finalClientLogoId = '';
-    let finalIcon = selectedIcon;
-
-    if (logoTab === 'client_logo') {
-      finalLogoUrl = selectedLogoUrl;
-      finalClientLogoId = selectedClientLogoId;
-    } else if (logoTab === 'upload' || logoTab === 'url') {
-      finalLogoUrl = selectedLogoUrl;
-      finalClientLogoId = '';
-    } else {
-      // icon mode
-      finalLogoUrl = '';
-      finalClientLogoId = '';
-      finalIcon = selectedIcon;
-    }
-
-    if (editingLink) {
-      // Update existing
-      const updated = links.map(l => {
-        if (l.id === editingLink.id) {
-          return {
-            ...l,
-            title: formTitle.trim(),
-            subtitle: formSubtitle.trim(),
-            url: formUrl.trim(),
-            category: formCategory,
-            badge: formBadge.trim().toUpperCase(),
-            isHighlighted: formIsHighlighted,
-            openNewTab: formIsOpenNewTab,
-            isActive: formIsActive,
-            logoUrl: finalLogoUrl,
-            clientLogoId: finalClientLogoId,
-            icon: finalIcon
-          };
-        }
-        return l;
-      });
-      setLinks(updated);
-      persistChanges(updated, profile);
-      toast.success('Link berhasil diperbarui!');
-    } else {
-      // Add new
-      const newLink = {
-        id: 'link_' + Date.now(),
-        title: formTitle.trim(),
-        subtitle: formSubtitle.trim(),
-        url: formUrl.trim(),
-        category: formCategory,
-        badge: formBadge.trim().toUpperCase(),
-        isHighlighted: formIsHighlighted,
-        openNewTab: formIsOpenNewTab,
-        isActive: formIsActive,
-        logoUrl: finalLogoUrl,
-        clientLogoId: finalClientLogoId,
-        icon: finalIcon,
-        clicks: 0
-      };
-      const updated = [newLink, ...links];
-      setLinks(updated);
-      persistChanges(updated, profile);
-      toast.success('Link baru berhasil ditambahkan!');
-    }
-
-    closeModal();
+    if (!sectionForm.title.trim()) return toast.error('Judul section wajib diisi');
+    const fields = { ...sectionForm, title: sectionForm.title.trim() };
+    if (sectionModal.id) edit(links.map((l) => (l.id === sectionModal.id ? { ...l, ...fields } : l)));
+    else edit([...links, { id: `header_${Date.now()}`, type: 'header', ...fields }]);
+    setSectionModal(null);
   };
 
-  // Section Modal Handlers
-  const openSectionModal = (sec = null) => {
-    if (sec) {
-      setEditingSection(sec);
-      setFormSectionTitle(sec.title || '');
-      setFormSectionActive(sec.isActive !== false);
-      setFormSectionType(sec.sectionType || 'normal');
-      setFormSectionDefaultOpen(sec.defaultOpen !== false);
-    } else {
-      setEditingSection(null);
-      setFormSectionTitle('');
-      setFormSectionActive(true);
-      setFormSectionType('normal');
-      setFormSectionDefaultOpen(true);
-    }
-    setIsSectionModalOpen(true);
+  const confirmDelete = () => {
+    const target = toDelete;
+    setToDelete(null);
+    if (!target) return;
+    // Menghapus section tidak menghapus link-nya; link ikut section di atasnya.
+    edit(links.filter((l) => l.id !== target.id));
+    if (!isHeader(target)) supabase.from('link_clicks').delete().eq('link_id', target.id).then(() => {}, () => {});
   };
 
-  const closeSectionModal = () => {
-    setIsSectionModalOpen(false);
-    setEditingSection(null);
+  const toggleActive = (id) => edit(links.map((l) => (l.id === id ? { ...l, isActive: l.isActive === false } : l)));
+
+  /* ── Profil ────────────────────────────────────────────── */
+  const openProfile = () => {
+    setProfileDraft(structuredClone(profile));
+    setProfileOpen(true);
   };
 
-  const handleSaveSection = (e) => {
+  const socialValue = (platform) => profileDraft?.socials?.find((s) => s.platform === platform)?.url || '';
+  const setSocial = (platform, label, url) =>
+    setProfileDraft((p) => {
+      const list = p.socials || [];
+      return { ...p, socials: list.some((s) => s.platform === platform) ? list.map((s) => (s.platform === platform ? { ...s, url } : s)) : [...list, { platform, label, url }] };
+    });
+  const setConcierge = (patch) => setProfileDraft((p) => ({ ...p, concierge: { ...DEFAULT_LINKTREE_PROFILE.concierge, ...p.concierge, ...patch } }));
+
+  const submitProfile = (e) => {
     e.preventDefault();
-    if (!formSectionTitle.trim()) {
-      toast.error('Judul section wajib diisi!');
-      return;
-    }
-
-    if (editingSection) {
-      const updated = links.map(item => {
-        if (item.id === editingSection.id) {
-          return {
-            ...item,
-            title: formSectionTitle.trim(),
-            isActive: formSectionActive,
-            sectionType: formSectionType,
-            defaultOpen: formSectionDefaultOpen
-          };
-        }
-        return item;
-      });
-      setLinks(updated);
-      persistChanges(updated, profile);
-      toast.success('Section berhasil diperbarui!');
-    } else {
-      const newSection = {
-        id: 'header_' + Date.now(),
-        type: 'header',
-        title: formSectionTitle.trim(),
-        isActive: formSectionActive,
-        sectionType: formSectionType,
-        defaultOpen: formSectionDefaultOpen
-      };
-      const updated = [...links, newSection];
-      setLinks(updated);
-      persistChanges(updated, profile);
-      toast.success('Section baru berhasil ditambahkan!');
-    }
-    closeSectionModal();
+    const bad = (profileDraft.socials || []).find((s) => s.url?.trim() && !isValidUrl(s.url));
+    if (bad) return toast.error(`URL ${bad.label || bad.platform} tidak valid`);
+    if (profileDraft.concierge?.buttonUrl && !isValidUrl(profileDraft.concierge.buttonUrl)) return toast.error('URL tombol konsultasi tidak valid');
+    edit(null, profileDraft);
+    setProfileOpen(false);
   };
 
-  // Save Profile settings
-  const handleSaveProfile = (e) => {
-    e.preventDefault();
-    persistChanges(links, profile);
-    setIsProfileOpen(false);
-  };
-
-  // Filter links for display in admin
-  const filteredLinks = links.filter(l => {
-    const matchSearch = l.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        l.subtitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        l.url?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCategory = categoryFilter === 'Semua' || l.category === categoryFilter;
-    return matchSearch && matchCategory;
-  });
-
-  const totalClicks = links.reduce((sum, l) => sum + (l.clicks || 0), 0);
-  const activeCount = links.filter(l => l.isActive).length;
+  const iconButton = 'ui-btn ui-btn-sm ui-btn-icon';
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12">
-      {/* ── Action Toolbar ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-2xl shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[#D90429]/15 text-[#D90429] flex items-center justify-center text-sm font-bold shrink-0">
-            <FiLink />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--admin-text-main)] font-heading leading-tight">
-              Daftar Tautan ({links.length})
-            </h3>
-            <p className="text-[11px] text-[var(--admin-text-muted)] mt-0.5">
-              Kelola urutan dan status tampil di link.snaphub.my.id
-            </p>
-          </div>
+    <div className="space-y-5 pb-28">
+      {/* Toolbar */}
+      <div className="ui-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Daftar tautan</h2>
+          <p className="text-sm text-[var(--admin-text-muted)] num">
+            {linkItems.length} link · {activeCount} aktif · {totalClicks.toLocaleString('id-ID')} klik
+          </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs font-semibold transition-all cursor-pointer"
-          >
-            <FiSettings className="text-[#D90429]" size={13} />
-            <span>Pengaturan Bio</span>
-          </button>
-
-          <button
-            onClick={() => openSectionModal()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:border-[#D90429]/40 text-xs font-semibold transition-all cursor-pointer"
-          >
-            <FiFolder className="text-purple-400" size={13} />
-            <span>+ Section</span>
-          </button>
-
-          <button
-            onClick={() => openModal()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs font-bold shadow-md shadow-[#D90429]/25 transition-all cursor-pointer"
-          >
-            <FiPlus size={15} />
-            <span>Tambah Link</span>
-          </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={openProfile} className="ui-btn"><FiSettings size={14} /> Profil &amp; bio</button>
+          <button onClick={() => openSectionModal()} className="ui-btn"><FiFolder size={14} /> Section baru</button>
+          <button onClick={() => openLinkModal()} className="ui-btn ui-btn-primary"><FiPlus size={15} /> Tambah link</button>
         </div>
       </div>
 
-      {/* ── Metric Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Total Link</span>
-            <p className="text-xl sm:text-2xl font-extrabold text-[var(--admin-text-main)] mt-0.5">{links.length}</p>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
-            <FiLink size={16} />
-          </div>
+      {/* Cari & filter section */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative sm:w-72">
+          <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)]" size={15} aria-hidden="true" />
+          <input type="search" aria-label="Cari link" placeholder="Cari judul atau URL" value={search} onChange={(e) => setSearch(e.target.value)} className="ui-input pl-10" />
         </div>
-
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Link Aktif</span>
-            <p className="text-xl sm:text-2xl font-extrabold text-emerald-400 mt-0.5">{activeCount}</p>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-            <FiEye size={16} />
-          </div>
-        </div>
-
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Total Klik</span>
-            <p className="text-xl sm:text-2xl font-extrabold text-purple-400 mt-0.5">{totalClicks.toLocaleString('id-ID')}</p>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
-            <FiBarChart2 size={16} />
-          </div>
-        </div>
-
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3.5 sm:p-4 rounded-xl flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-semibold text-[var(--admin-text-muted)] uppercase tracking-wider block">Client Logos</span>
-            <p className="text-xl sm:text-2xl font-extrabold text-amber-400 mt-0.5">{clientLogos.length}</p>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
-            <FiImage size={16} />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Profile Settings Drawer / Panel ── */}
-      <div
-        style={{
-          maxHeight: isProfileOpen ? '2000px' : '0px',
-          opacity: isProfileOpen ? 1 : 0,
-          overflow: 'hidden',
-          transition: isProfileOpen
-            ? 'max-height 0.4s ease, opacity 0.25s ease'
-            : 'max-height 0.3s ease, opacity 0.2s ease'
-        }}
-      >
-        {isProfileOpen && (
-          <div className="bg-[var(--admin-surface)] border border-[#D90429]/30 p-6 rounded-2xl shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-[var(--admin-text-main)] flex items-center gap-2">
-                <FiSliders className="text-[#D90429]" />
-                Pengaturan Tampilan Halaman Bio / Linktree
-              </h3>
-              <button
-                onClick={() => setIsProfileOpen(false)}
-                className="text-[var(--admin-text-muted)] hover:text-white p-1 rounded-lg"
-              >
-                <FiX size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
-                    Nama Profil / Brand
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.name}
-                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    placeholder="SnapHub Photobooth"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
-                    Handle (@)
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.handle}
-                    onChange={(e) => setProfile({ ...profile, handle: e.target.value })}
-                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    placeholder="@snaphub.id"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
-                  Bio / Tagline
-                </label>
-                <textarea
-                  rows={2}
-                  value={profile.bio}
-                  onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-                  className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                  placeholder="Photobooth Malang & Jawa Timur • Instant Prints & Digital Memories ✨"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
-                    URL WhatsApp
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.socials?.find(s => s.platform === 'whatsapp')?.url || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const exists = profile.socials?.some(s => s.platform === 'whatsapp');
-                      const updated = exists
-                        ? profile.socials.map(s => s.platform === 'whatsapp' ? { ...s, url: val } : s)
-                        : [...(profile.socials || []), { platform: 'whatsapp', url: val, label: 'WhatsApp' }];
-                      setProfile({ ...profile, socials: updated });
-                    }}
-                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    placeholder="https://wa.me/..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
-                    URL Instagram
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.socials?.find(s => s.platform === 'instagram')?.url || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const exists = profile.socials?.some(s => s.platform === 'instagram');
-                      const updated = exists
-                        ? profile.socials.map(s => s.platform === 'instagram' ? { ...s, url: val } : s)
-                        : [...(profile.socials || []), { platform: 'instagram', url: val, label: 'Instagram' }];
-                      setProfile({ ...profile, socials: updated });
-                    }}
-                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    placeholder="https://instagram.com/..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">
-                    URL TikTok
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.socials?.find(s => s.platform === 'tiktok')?.url || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const exists = profile.socials?.some(s => s.platform === 'tiktok');
-                      const updated = exists
-                        ? profile.socials.map(s => s.platform === 'tiktok' ? { ...s, url: val } : s)
-                        : [...(profile.socials || []), { platform: 'tiktok', url: val, label: 'TikTok' }];
-                      setProfile({ ...profile, socials: updated });
-                    }}
-                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    placeholder="https://tiktok.com/@..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5 flex items-center justify-between">
-                    <span>URL Website</span>
-                    <span className="text-[10px] lowercase font-normal text-zinc-500">(opsional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.socials?.find(s => s.platform === 'website')?.url || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const exists = profile.socials?.some(s => s.platform === 'website');
-                      const updated = exists
-                        ? profile.socials.map(s => s.platform === 'website' ? { ...s, url: val } : s)
-                        : [...(profile.socials || []), { platform: 'website', url: val, label: 'Website Utama' }];
-                      setProfile({ ...profile, socials: updated });
-                    }}
-                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    placeholder="https://snaphub.my.id"
-                  />
-                </div>
-              </div>
-
-              {/* Kotak Konsultasi & Reservasi Acara (Concierge Box) */}
-              <div className="pt-4 mt-2 border-t border-[var(--admin-border)] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-[var(--admin-text-main)] uppercase tracking-wider">
-                      Kotak Konsultasi & Reservasi Acara (Bagian Bawah)
-                    </h4>
-                    <p className="text-[11px] text-[var(--admin-text-muted)] mt-0.5">
-                      Kartu khusus di bawah daftar link untuk mengarahkan pengunjung langsung reservasi ke WhatsApp.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={profile.concierge?.show !== false}
-                      onChange={(e) => {
-                        const current = profile.concierge || DEFAULT_LINKTREE_PROFILE.concierge;
-                        setProfile({
-                          ...profile,
-                          concierge: { ...current, show: e.target.checked }
-                        });
-                      }}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#D90429]"></div>
-                    <span className="ml-2 text-xs font-medium text-[var(--admin-text-main)]">
-                      {profile.concierge?.show !== false ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                  </label>
-                </div>
-
-                {profile.concierge?.show !== false && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--admin-text-muted)] mb-1">
-                        Judul Kotak
-                      </label>
-                      <input
-                        type="text"
-                        value={profile.concierge?.title ?? 'Konsultasi & Reservasi Acara'}
-                        onChange={(e) => {
-                          const current = profile.concierge || DEFAULT_LINKTREE_PROFILE.concierge;
-                          setProfile({
-                            ...profile,
-                            concierge: { ...current, title: e.target.value }
-                          });
-                        }}
-                        className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                        placeholder="Konsultasi & Reservasi Acara"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--admin-text-muted)] mb-1">
-                        Teks Tombol
-                      </label>
-                      <input
-                        type="text"
-                        value={profile.concierge?.buttonText ?? 'Hubungi WA'}
-                        onChange={(e) => {
-                          const current = profile.concierge || DEFAULT_LINKTREE_PROFILE.concierge;
-                          setProfile({
-                            ...profile,
-                            concierge: { ...current, buttonText: e.target.value }
-                          });
-                        }}
-                        className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                        placeholder="Hubungi WA"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--admin-text-muted)] mb-1">
-                        Deskripsi / Subtitle
-                      </label>
-                      <input
-                        type="text"
-                        value={profile.concierge?.subtitle ?? 'Pernikahan, wisuda, gathering, & custom booth.'}
-                        onChange={(e) => {
-                          const current = profile.concierge || DEFAULT_LINKTREE_PROFILE.concierge;
-                          setProfile({
-                            ...profile,
-                            concierge: { ...current, subtitle: e.target.value }
-                          });
-                        }}
-                        className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                        placeholder="Pernikahan, wisuda, gathering, & custom booth."
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--admin-text-muted)] mb-1">
-                        Link WhatsApp / URL Tujuan
-                      </label>
-                      <input
-                        type="text"
-                        value={profile.concierge?.buttonUrl ?? 'https://wa.me/6285190643459?text=Halo%20SnapHub%2C%20saya%20ingin%20tanya%20paket%20photobooth.'}
-                        onChange={(e) => {
-                          const current = profile.concierge || DEFAULT_LINKTREE_PROFILE.concierge;
-                          setProfile({
-                            ...profile,
-                            concierge: { ...current, buttonUrl: e.target.value }
-                          });
-                        }}
-                        className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                        placeholder="https://wa.me/..."
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-sm font-semibold transition-all cursor-pointer"
-                >
-                  <FiSave />
-                  <span>{saving ? 'Menyimpan...' : 'Simpan Pengaturan Profil'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
-
-      {/* ── Search & Filter Bar ── */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[var(--admin-surface)] border border-[var(--admin-border)] p-3 sm:p-3.5 rounded-2xl shadow-sm">
-        <div className="relative w-full sm:w-72">
-          <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)]" size={14} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari link, kegiatan, url..."
-            className="w-full pl-9 pr-3 py-2 bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] rounded-xl text-xs sm:text-sm text-[var(--admin-text-main)] placeholder-[var(--admin-text-muted)] focus:outline-none focus:border-[#D90429] transition-colors"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {LINK_CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
-                categoryFilter === cat
-                  ? 'bg-[#D90429] text-white shadow-sm'
-                  : 'bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] border border-transparent hover:border-[var(--admin-border)]'
-              }`}
-            >
-              {cat}
-            </button>
+        <div className="flex gap-1 overflow-x-auto" role="group" aria-label="Filter section">
+          <button className="ui-tab" aria-pressed={sectionFilter === 'all'} onClick={() => setSectionFilter('all')}>Semua</button>
+          {sections.map((s) => (
+            <button key={s.id} className="ui-tab" aria-pressed={sectionFilter === s.id} onClick={() => setSectionFilter(s.id)}>{s.title}</button>
           ))}
         </div>
       </div>
 
-      {/* ── Links List ── */}
+      {/* Daftar */}
       {loading ? (
-        <div className="py-20 text-center">
-          <div className="w-8 h-8 border-3 border-[#D90429] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-[var(--admin-text-muted)]">Memuat data linktree...</p>
-        </div>
-      ) : filteredLinks.length === 0 ? (
-        <div className="bg-[var(--admin-surface)] border border-dashed border-[var(--admin-border)] rounded-2xl p-8 sm:p-12 text-center">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3 sm:mb-4 text-[var(--admin-text-muted)]">
-            <FiLink size={24} className="sm:hidden" />
-            <FiLink size={28} className="hidden sm:block" />
-          </div>
-          <h3 className="text-base sm:text-lg font-bold text-[var(--admin-text-main)]">Belum ada link</h3>
-          <p className="text-xs sm:text-sm text-[var(--admin-text-muted)] mt-1 max-w-md mx-auto">
-            {searchQuery
-              ? 'Tidak ada link yang sesuai dengan kata kunci pencarian.'
-              : 'Tambahkan link kegiatan, event, sponsorship, atau kontak pertama Anda!'}
-          </p>
-          <button
-            onClick={() => openModal()}
-            className="mt-4 sm:mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold cursor-pointer"
-          >
-            <FiPlus /> Tambah Link Baru
-          </button>
+        <div className="py-20 flex justify-center"><div className="w-8 h-8 border-[3px] border-[var(--admin-primary)] border-t-transparent rounded-full animate-spin" role="status" aria-label="Memuat" /></div>
+      ) : visibleRows.length === 0 ? (
+        <div className="ui-card border-dashed p-10 text-center">
+          <p className="font-medium">{search ? 'Tidak ada link yang cocok' : 'Belum ada link'}</p>
+          {!search && <button onClick={() => openLinkModal()} className="ui-btn ui-btn-primary mt-4"><FiPlus size={15} /> Tambah link pertama</button>}
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-1 text-xs text-[var(--admin-text-muted)]">
-            <span className="flex items-center gap-1.5 text-[11px] sm:text-xs">
-              <span className="text-zinc-400 font-mono text-sm leading-none">⠿</span>
-              <span>Tahan & geser untuk atur urutan</span>
-            </span>
-            <span className="font-mono text-[11px] opacity-70">
-              {filteredLinks.length} item
-            </span>
-          </div>
-
-          {filteredLinks.map((link) => {
-            // SECTION HEADER ITEM
-            if (link.type === 'header') {
-              const isDragging = draggedId === link.id;
-              const isOver = dragOverId === link.id && !isDragging;
-
-              return (
-                <div
-                  key={link.id}
-                  data-link-id={link.id}
-                  draggable={true}
-                  onDragStart={(e) => handleDragStart(e, link.id)}
-                  onDragOver={(e) => handleDragOver(e, link.id)}
-                  onDragLeave={(e) => handleDragLeave(e, link.id)}
-                  onDrop={(e) => handleDrop(e, link.id)}
-                  onDragEnd={handleDragEnd}
-                  className={`group bg-[var(--admin-surface)] border border-dashed rounded-xl p-3 sm:p-3.5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 ${
-                    isDragging
-                      ? 'opacity-30 scale-[0.99] border-[#D90429]'
-                      : isOver
-                      ? 'border-[#D90429] ring-2 ring-[#D90429]/50 bg-[#D90429]/10'
-                      : link.isActive
-                      ? 'border-[var(--admin-border)] bg-white/[0.02] hover:border-zinc-500'
-                      : 'border-white/5 opacity-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                    <div
-                      className="p-1 sm:p-1.5 text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing transition-colors rounded-lg hover:bg-white/5 flex items-center justify-center shrink-0 select-none touch-none"
-                      title="Tahan & geser untuk memindahkan urutan"
-                      onTouchStart={(e) => handleTouchStart(e, link.id)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
-                    >
-                      <svg width="14" height="18" viewBox="0 0 14 18" fill="currentColor">
-                        <circle cx="4" cy="3" r="1.6" />
-                        <circle cx="10" cy="3" r="1.6" />
-                        <circle cx="4" cy="9" r="1.6" />
-                        <circle cx="10" cy="9" r="1.6" />
-                        <circle cx="4" cy="15" r="1.6" />
-                        <circle cx="10" cy="15" r="1.6" />
-                      </svg>
-                    </div>
-
-                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                      link.sectionType === 'dropdown' ? 'bg-purple-500/15 text-purple-400' : 'bg-[#D90429]/10 text-[#D90429]'
-                    }`}>
-                      {link.sectionType === 'dropdown' ? <FiFolder size={13} /> : <FiTag size={13} />}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                        {link.sectionType === 'dropdown' ? (
-                          <span className="text-[9px] sm:text-[9.5px] font-mono uppercase tracking-wider text-purple-300 bg-purple-500/15 border border-purple-500/25 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <FiChevronDown size={10} /> DROPDOWN
-                          </span>
-                        ) : (
-                          <span className="text-[9px] sm:text-[9.5px] font-mono uppercase tracking-wider text-[var(--admin-text-muted)] bg-white/5 border border-white/5 px-1.5 py-0.5 rounded">
-                            HEADER BIASA
-                          </span>
-                        )}
-                        {link.sectionType === 'dropdown' && (
-                          <span className="text-[10px] sm:text-[11px] text-[var(--admin-text-muted)]">
-                            • Default: {link.defaultOpen !== false ? 'Buka' : 'Tutup'}
-                          </span>
-                        )}
-                      </div>
-                      <h4 className="text-xs sm:text-sm font-bold text-[var(--admin-text-main)] truncate mt-0.5 uppercase tracking-wide">
-                        {link.title}
-                      </h4>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-1.5 sm:gap-2 self-end sm:self-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-white/5 w-full sm:w-auto">
-                    <button
-                      onClick={() => toggleActive(link.id)}
-                      className={`px-2 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
-                        link.isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-[var(--admin-text-muted)]'
-                      }`}
-                    >
-                      {link.isActive ? 'Aktif' : 'Nonaktif'}
-                    </button>
-                    <button
-                      onClick={() => openSectionModal(link)}
-                      className="p-1.5 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:bg-[#D90429]/20 hover:text-[#D90429] cursor-pointer"
-                      title="Edit Judul Section"
-                    >
-                      <FiEdit2 size={13} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmId(link.id)}
-                      className="p-1.5 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:bg-red-500/20 hover:text-red-400 cursor-pointer"
-                      title="Hapus Section"
-                    >
-                      <FiTrash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            }
-
-            // LINK ITEM
-            const isDragging = draggedId === link.id;
-            const isOver = dragOverId === link.id && !isDragging;
-
+        <ul className="ui-card divide-y divide-[var(--admin-border)] overflow-hidden">
+          {visibleRows.map(({ item, sectionId }) => {
+            const header = isHeader(item);
+            const nested = !header && !!sectionId;
+            const inactive = item.isActive === false;
+            const Icon = PRESET_ICONS.find((p) => p.id === item.icon)?.Icon || FiLink;
             return (
-              <div
-                key={link.id}
-                data-link-id={link.id}
-                draggable={true}
-                onDragStart={(e) => handleDragStart(e, link.id)}
-                onDragOver={(e) => handleDragOver(e, link.id)}
-                onDragLeave={(e) => handleDragLeave(e, link.id)}
-                onDrop={(e) => handleDrop(e, link.id)}
-                onDragEnd={handleDragEnd}
-                className={`group bg-[var(--admin-surface)] border rounded-2xl p-3.5 sm:p-4 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 ${
-                  isDragging
-                    ? 'opacity-30 scale-[0.99] border-[#D90429]'
-                    : isOver
-                    ? 'border-[#D90429] ring-2 ring-[#D90429]/50 bg-[#D90429]/10'
-                    : link.isActive
-                    ? 'border-[var(--admin-border)] hover:border-[#D90429]/40'
-                    : 'border-white/5 opacity-60'
-                } ${link.isHighlighted ? 'ring-1 ring-[#D90429]/30 bg-[#D90429]/5' : ''}`}
+              <li
+                key={item.id}
+                data-link-id={item.id}
+                draggable
+                onDragStart={(e) => onDragStart(e, item.id)}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverId !== item.id) setDragOverId(item.id); }}
+                onDragLeave={() => dragOverId === item.id && setDragOverId(null)}
+                onDrop={(e) => { e.preventDefault(); reorder(draggedId, item.id); endDrag(); }}
+                onDragEnd={endDrag}
+                className={`relative p-3 sm:p-4 flex items-center gap-3 transition-colors ${nested ? 'pl-8 sm:pl-12' : ''} ${header ? 'bg-[var(--admin-hover-bg)]' : ''} ${inactive ? 'opacity-60' : ''} ${draggedId === item.id ? 'opacity-30' : ''} ${dragOverId === item.id && draggedId !== item.id ? 'outline outline-2 -outline-offset-2 outline-[var(--admin-primary)] bg-[var(--admin-hover-bg)]' : ''}`}
               >
-                {/* Left: Drag Handle & Thumbnail & Details */}
-                <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 w-full min-w-0">
-                  {/* Drag Handle */}
-                  <div
-                    className="p-1 sm:p-1.5 text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing transition-colors rounded-lg hover:bg-white/5 flex items-center justify-center shrink-0 select-none touch-none mt-1 sm:mt-0"
-                    title="Tahan & geser untuk memindahkan urutan"
-                    onTouchStart={(e) => handleTouchStart(e, link.id)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                  >
-                    <svg width="14" height="18" viewBox="0 0 14 18" fill="currentColor">
-                      <circle cx="4" cy="3" r="1.6" />
-                      <circle cx="10" cy="3" r="1.6" />
-                      <circle cx="4" cy="9" r="1.6" />
-                      <circle cx="10" cy="9" r="1.6" />
-                      <circle cx="4" cy="15" r="1.6" />
-                      <circle cx="10" cy="15" r="1.6" />
-                    </svg>
-                  </div>
-
-                  {/* Thumbnail / Logo Kegiatan */}
-                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                    {link.logoUrl ? (
-                      <img
-                        src={link.logoUrl}
-                        alt={link.title}
-                        className="w-full h-full object-contain p-1 sm:p-1.5"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="text-lg sm:text-xl text-[#D90429]">
-                        {PRESET_ICONS.find(p => p.id === link.icon)?.icon || <FiLink />}
-                      </div>
-                    )}
-                    {link.isHighlighted && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#D90429] rounded-full border-2 border-[var(--admin-surface)]" title="Link Unggulan" />
-                    )}
-                  </div>
-
-                  {/* Content Details */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <h4 className="font-bold text-[var(--admin-text-main)] text-sm sm:text-base truncate">
-                        {link.title}
-                      </h4>
-                      {link.badge && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white/10 text-[var(--admin-text-main)] border border-white/10">
-                          {link.badge}
-                        </span>
-                      )}
-                      {link.category && (
-                        <span className="px-1.5 py-0.5 rounded-md text-[9px] bg-white/5 text-[var(--admin-text-muted)] border border-white/5">
-                          {link.category}
-                        </span>
-                      )}
-                    </div>
-
-                    {link.subtitle && (
-                      <p className="text-xs text-[var(--admin-text-muted)] mt-0.5 line-clamp-1">
-                        {link.subtitle}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-2 mt-0.5 sm:mt-1 text-xs text-[var(--admin-text-muted)]">
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-[#D90429] transition-colors truncate max-w-[180px] sm:max-w-xs flex items-center gap-1 font-mono text-[10.5px] sm:text-[11px]"
-                      >
-                        {link.url} <FiExternalLink size={10} className="shrink-0" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Stats & Action Buttons */}
-                <div className="flex items-center justify-between md:justify-end gap-2 sm:gap-3 w-full md:w-auto pt-2.5 md:pt-0 border-t md:border-t-0 border-[var(--admin-border)]">
-                  {/* Click Badge */}
-                  <div
-                    onClick={() => resetClicks(link.id)}
-                    title="Klik untuk reset jumlah klik"
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/5 text-[11px] sm:text-xs text-[var(--admin-text-muted)] hover:text-white cursor-pointer shrink-0"
-                  >
-                    <span>{link.clicks || 0} klik</span>
-                    <FiRefreshCw size={9} className="opacity-60" />
-                  </div>
-
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    {/* Active Toggle Button */}
-                    <button
-                      onClick={() => toggleActive(link.id)}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        link.isActive
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-white/5 text-[var(--admin-text-muted)] border border-white/10'
-                      }`}
-                    >
-                      {link.isActive ? <FiEye size={12} /> : <FiEyeOff size={12} />}
-                      <span className="hidden xs:inline">{link.isActive ? 'Aktif' : 'Nonaktif'}</span>
-                    </button>
-
-                    {/* Edit Button */}
-                    <button
-                      onClick={() => openModal(link)}
-                      className="p-1.5 sm:p-2 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-main)] hover:bg-[#D90429]/20 hover:text-[#D90429] transition-colors cursor-pointer"
-                      title="Edit link"
-                    >
-                      <FiEdit2 size={14} />
-                    </button>
-
-                    {/* Delete Button */}
-                    <button
-                      onClick={() => setDeleteConfirmId(link.id)}
-                      className="p-1.5 sm:p-2 rounded-lg bg-[var(--admin-hover-bg)] text-[var(--admin-text-muted)] hover:bg-red-500/20 hover:text-red-400 transition-colors cursor-pointer"
-                      title="Hapus link"
-                    >
-                      <FiTrash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Delete Confirmation Modal ── */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75">
-          <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-lg font-bold text-[var(--admin-text-main)]">Hapus Link?</h3>
-            <p className="text-sm text-[var(--admin-text-muted)] mt-2">
-              Link ini akan dihapus dari halaman Bio / Linktree publik. Tindakan ini tidak dapat dibatalkan.
-            </p>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="px-4 py-2 rounded-xl border border-[var(--admin-border)] text-sm font-medium hover:bg-white/5 cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={() => handleDeleteLink(deleteConfirmId)}
-                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold cursor-pointer"
-              >
-                Hapus
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Add / Edit Link Modal ── */}
-      {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 overflow-y-auto">
-            <div
-              className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl p-4 sm:p-6 relative my-auto"
-              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-[var(--admin-border)]">
-                <div>
-                  <h3 className="text-lg font-bold text-[var(--admin-text-main)] font-heading">
-                    {editingLink ? 'Edit Link Kegiatan' : 'Tambah Link Kegiatan Baru'}
-                  </h3>
-                  <p className="text-xs text-[var(--admin-text-muted)] mt-0.5">
-                    Lengkapi informasi link kegiatan, pilih logo dari Client Logo atau upload baru.
-                  </p>
-                </div>
+                {nested && <span aria-hidden="true" className="absolute left-4 sm:left-6 top-0 bottom-0 w-px bg-[var(--admin-border)]" />}
                 <button
-                  onClick={closeModal}
-                  className="p-2 text-[var(--admin-text-muted)] hover:text-white rounded-lg hover:bg-white/5 cursor-pointer"
+                  type="button"
+                  className="p-1.5 text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] cursor-grab active:cursor-grabbing touch-none select-none shrink-0 rounded-lg hover:bg-[var(--admin-hover-bg)]"
+                  aria-label={`Pindahkan ${item.title}. Tahan dan geser, atau gunakan panah atas dan bawah.`}
+                  title="Tahan & geser untuk memindahkan urutan"
+                  onKeyDown={(e) => onHandleKey(e, item.id)}
+                  onTouchStart={() => { touchIdRef.current = item.id; setDraggedId(item.id); }}
+                  onTouchMove={onTouchMove}
+                  onTouchEnd={onTouchEnd}
                 >
-                  <FiX size={20} />
+                  <svg width="14" height="18" viewBox="0 0 14 18" fill="currentColor" aria-hidden="true">
+                    <circle cx="4" cy="3" r="1.6" /><circle cx="10" cy="3" r="1.6" />
+                    <circle cx="4" cy="9" r="1.6" /><circle cx="10" cy="9" r="1.6" />
+                    <circle cx="4" cy="15" r="1.6" /><circle cx="10" cy="15" r="1.6" />
+                  </svg>
                 </button>
-              </div>
 
-              {/* Form */}
-              <form onSubmit={handleSaveModal} className="space-y-5 pt-4">
-                {/* 1. Basic Info */}
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1">
-                      Judul Link / Nama Kegiatan <span className="text-[#D90429]">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      placeholder="Contoh: Wisuda UB Periode VII 2026 - Softfile Booth"
-                      className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                      required
-                    />
+                {header ? (
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-[var(--admin-text-muted)]">Section · {item.sectionType === 'dropdown' ? 'dropdown' : 'biasa'}</p>
+                    <p className="font-semibold truncate">{item.title}</p>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1">
-                      Deskripsi Singkat / Subtitle
-                    </label>
-                    <input
-                      type="text"
-                      value={formSubtitle}
-                      onChange={(e) => setFormSubtitle(e.target.value)}
-                      placeholder="Contoh: Akses hasil foto photobooth instan & unduh softfile"
-                      className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1">
-                      URL Tujuan <span className="text-[#D90429]">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formUrl}
-                      onChange={(e) => setFormUrl(e.target.value)}
-                      placeholder="https://drive.google.com/... atau /live/slug atau https://wa.me/..."
-                      className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429] font-mono text-xs"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* 2. Logo Kegiatan Section */}
-                <div className="bg-white/[0.02] border border-[var(--admin-border)] rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-[var(--admin-text-main)] uppercase tracking-wider block">
-                        Logo Kegiatan / Thumbnail
-                      </span>
-                      <p className="text-[11px] text-[var(--admin-text-muted)]">
-                        Bisa dipilih langsung dari Client Logo yang sudah ada di database, upload logo baru, atau icon.
+                ) : (
+                  <>
+                    <div className="w-11 h-11 shrink-0 rounded-lg bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] flex items-center justify-center overflow-hidden">
+                      {item.logoUrl ? <img src={item.logoUrl} alt="" loading="lazy" className="w-full h-full object-contain p-1" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : <Icon size={18} className="text-[var(--admin-text-muted)]" aria-hidden="true" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">
+                        {item.title}
+                        {item.isHighlighted && <span className="ui-tag ml-2 align-middle">Unggulan</span>}
+                        {item.badge && <span className="ui-tag ml-2 align-middle">{item.badge}</span>}
+                      </p>
+                      <p className="text-sm text-[var(--admin-text-muted)] truncate">
+                        <span className="font-mono">{item.url}</span> · <span className="num">{clicks[item.id] || 0} klik</span>
                       </p>
                     </div>
-
-                    {/* Preview box */}
-                    <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                      {selectedLogoUrl ? (
-                        <img
-                          src={selectedLogoUrl}
-                          alt="Preview"
-                          className="w-full h-full object-contain p-1"
-                        />
-                      ) : (
-                        <div className="text-lg text-[#D90429]">
-                          {PRESET_ICONS.find(p => p.id === selectedIcon)?.icon || <FiLink />}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Logo Source Tabs */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-black/20 p-1.5 rounded-xl border border-white/5">
-                    <button
-                      type="button"
-                      onClick={() => setLogoTab('client_logo')}
-                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
-                        logoTab === 'client_logo'
-                          ? 'bg-[#D90429] text-white font-semibold shadow-sm'
-                          : 'text-[var(--admin-text-muted)] hover:text-white'
-                      }`}
-                    >
-                      Client Logo ({clientLogos.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogoTab('upload')}
-                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
-                        logoTab === 'upload'
-                          ? 'bg-[#D90429] text-white font-semibold shadow-sm'
-                          : 'text-[var(--admin-text-muted)] hover:text-white'
-                      }`}
-                    >
-                      Upload Gambar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogoTab('url')}
-                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
-                        logoTab === 'url'
-                          ? 'bg-[#D90429] text-white font-semibold shadow-sm'
-                          : 'text-[var(--admin-text-muted)] hover:text-white'
-                      }`}
-                    >
-                      URL Gambar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLogoTab('icon')}
-                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium transition-colors cursor-pointer text-center ${
-                        logoTab === 'icon'
-                          ? 'bg-[#D90429] text-white font-semibold shadow-sm'
-                          : 'text-[var(--admin-text-muted)] hover:text-white'
-                      }`}
-                    >
-                      Preset Icon
-                    </button>
-                  </div>
-
-                  {/* Tab 1: Client Logo Selector */}
-                  {logoTab === 'client_logo' && (
-                    <div className="space-y-2.5 pt-1">
-                      <div className="relative">
-                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)] text-xs" />
-                        <input
-                          type="text"
-                          value={clientLogoSearch}
-                          onChange={(e) => setClientLogoSearch(e.target.value)}
-                          placeholder="Cari nama client logo..."
-                          className="w-full pl-8 pr-3 py-1.5 bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-lg text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                        />
-                      </div>
-
-                      {clientLogos.length === 0 ? (
-                        <div className="text-center py-4 text-xs text-[var(--admin-text-muted)] bg-white/5 rounded-lg border border-white/5">
-                          Belum ada Client Logo di database.{' '}
-                          <a href="/admin/logos" className="text-[#D90429] underline">
-                            Tambah di menu Client Logos
-                          </a>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 bg-black/10 rounded-lg border border-white/5">
-                          {clientLogos
-                            .filter(c => c.client_name?.toLowerCase().includes(clientLogoSearch.toLowerCase()))
-                            .map((client) => {
-                              const isSelected = selectedLogoUrl === client.logo_url;
-                              return (
-                                <button
-                                  type="button"
-                                  key={client.id}
-                                  onClick={() => handleSelectClientLogo(client)}
-                                  className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all cursor-pointer ${
-                                    isSelected
-                                      ? 'border-[#D90429] bg-[#D90429]/15 ring-1 ring-[#D90429]'
-                                      : 'border-[var(--admin-border)] hover:bg-white/5'
-                                  }`}
-                                >
-                                  <div className="w-8 h-8 rounded bg-white/10 shrink-0 flex items-center justify-center p-1 overflow-hidden">
-                                    <img
-                                      src={client.logo_url}
-                                      alt={client.client_name}
-                                      className="w-full h-full object-contain"
-                                    />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-semibold text-[var(--admin-text-main)] truncate">
-                                      {client.client_name}
-                                    </p>
-                                    {isSelected && (
-                                      <span className="text-[10px] text-[#E79EA7] flex items-center gap-0.5">
-                                        <FiCheck size={10} /> Terpilih
-                                      </span>
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tab 2: Upload File */}
-                  {logoTab === 'upload' && (
-                    <div className="pt-1">
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="border-2 border-dashed border-[var(--admin-border)] hover:border-[#D90429]/50 rounded-xl p-6 text-center cursor-pointer transition-colors bg-white/[0.01]"
-                      >
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleUploadLogoFile}
-                          className="hidden"
-                        />
-                        <FiUpload className="mx-auto text-2xl text-[#D90429] mb-2" />
-                        <p className="text-xs font-semibold text-[var(--admin-text-main)]">
-                          {uploadingLogo ? 'Sedang mengunggah...' : 'Klik untuk memilih logo kegiatan'}
-                        </p>
-                        <p className="text-[11px] text-[var(--admin-text-muted)] mt-1">
-                          PNG, JPG, SVG, WebP (maks. 2MB)
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tab 3: URL Gambar */}
-                  {logoTab === 'url' && (
-                    <div className="pt-1">
-                      <input
-                        type="url"
-                        value={selectedLogoUrl}
-                        onChange={(e) => {
-                          setSelectedLogoUrl(e.target.value);
-                          setSelectedClientLogoId('');
-                        }}
-                        placeholder="https://domain.com/logo-kegiatan.png"
-                        className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-lg px-3 py-2 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                      />
-                    </div>
-                  )}
-
-                  {/* Tab 4: Preset Icon */}
-                  {logoTab === 'icon' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                      {PRESET_ICONS.map((item) => (
-                        <button
-                          type="button"
-                          key={item.id}
-                          onClick={() => {
-                            setSelectedIcon(item.id);
-                            setSelectedLogoUrl('');
-                            setSelectedClientLogoId('');
-                          }}
-                          className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
-                            selectedIcon === item.id && !selectedLogoUrl
-                              ? 'border-[#D90429] bg-[#D90429]/15 text-white font-semibold'
-                              : 'border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:bg-white/5'
-                          }`}
-                        >
-                          <span className="text-sm">{item.icon}</span>
-                          <span>{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* 3. Category & Badge */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1">
-                      Nama Section / Bagian
-                    </label>
-                    <input
-                      type="text"
-                      list="section-presets"
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value)}
-                      placeholder="Contoh: Event & Kegiatan, Layanan..."
-                      className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2.5 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    />
-                    <datalist id="section-presets">
-                      {LINK_CATEGORIES.filter(c => c !== 'Semua').map((cat) => (
-                        <option key={cat} value={cat} />
-                      ))}
-                    </datalist>
-                    <p className="text-[11px] text-[var(--admin-text-muted)] mt-1">
-                      Tautan akan dikelompokkan berdasarkan nama section ini di halaman publik.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1">
-                      Badge Text (Opsional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formBadge}
-                      onChange={(e) => setFormBadge(e.target.value)}
-                      placeholder="Misal: EVENT AKTIF, NEW, PROMO"
-                      className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-3 py-2.5 text-xs text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    />
-                  </div>
-                </div>
-
-                {/* 4. Toggles */}
-                <div className="space-y-2 pt-1 border-t border-[var(--admin-border)]">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formIsHighlighted}
-                      onChange={(e) => setFormIsHighlighted(e.target.checked)}
-                      className="rounded accent-[#D90429] w-4 h-4 cursor-pointer"
-                    />
-                    <span className="text-xs text-[var(--admin-text-main)]">
-                      <strong className="font-semibold">Jadikan Link Unggulan</strong> (Tampil dengan efek glow & animasi perhatian)
-                    </span>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formIsOpenNewTab}
-                      onChange={(e) => setFormIsOpenNewTab(e.target.checked)}
-                      className="rounded accent-[#D90429] w-4 h-4 cursor-pointer"
-                    />
-                    <span className="text-xs text-[var(--admin-text-main)]">
-                      Buka di tab baru (Target _blank)
-                    </span>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
-                      className="rounded accent-[#D90429] w-4 h-4 cursor-pointer"
-                    />
-                    <span className="text-xs text-[var(--admin-text-main)]">
-                      Status Aktif (Tampilkan di halaman publik)
-                    </span>
-                  </label>
-                </div>
-
-                {/* Submit Buttons */}
-                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-4 border-t border-[var(--admin-border)]">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[var(--admin-border)] text-xs sm:text-sm font-medium hover:bg-white/5 cursor-pointer text-center"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold shadow-lg shadow-[#D90429]/25 cursor-pointer text-center"
-                  >
-                    {editingLink ? 'Simpan Perubahan' : 'Tambahkan Link'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-      )}
-
-      {/* ── Section / Header Modal ── */}
-      {isSectionModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 overflow-y-auto">
-            <div
-              className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl p-4 sm:p-6 relative my-auto"
-              style={{ animation: 'adminModalIn 0.18s ease forwards' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--admin-border)]">
-                <h3 className="text-base font-bold text-[var(--admin-text-main)]">
-                  {editingSection ? 'Edit Section / Pembatas' : 'Tambah Section Baru'}
-                </h3>
-                <button onClick={closeSectionModal} className="p-1.5 text-[var(--admin-text-muted)] hover:text-white rounded-lg">
-                  <FiX size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveSection} className="space-y-4 pt-4">
-                {/* 1. Section Title */}
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1">
-                    Judul Section <span className="text-[#D90429]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formSectionTitle}
-                    onChange={(e) => setFormSectionTitle(e.target.value)}
-                    placeholder="Contoh: Event & Kegiatan Terkini"
-                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[#D90429]"
-                    required
-                  />
-                </div>
-
-                {/* 2. Section Type Choice (Biasa vs Dropdown) */}
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-2">
-                    Tipe Tampilan Section
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {/* Option: Biasa */}
-                    <button
-                      type="button"
-                      onClick={() => setFormSectionType('normal')}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        formSectionType === 'normal'
-                          ? 'border-[#D90429] bg-[#D90429]/10 text-white ring-1 ring-[#D90429]/40'
-                          : 'border-[var(--admin-border)] bg-[var(--admin-input-bg)] text-[var(--admin-text-muted)] hover:border-zinc-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <FiList className={formSectionType === 'normal' ? 'text-[#D90429]' : 'text-zinc-400'} size={15} />
-                        <span className="text-xs font-bold text-[var(--admin-text-main)]">Header Biasa</span>
-                      </div>
-                      <p className="text-[11px] text-[var(--admin-text-muted)] leading-relaxed">
-                        Pemisah garis statis. Semua link di bawahnya langsung terlihat.
-                      </p>
-                    </button>
-
-                    {/* Option: Dropdown / Accordion */}
-                    <button
-                      type="button"
-                      onClick={() => setFormSectionType('dropdown')}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                        formSectionType === 'dropdown'
-                          ? 'border-purple-500 bg-purple-500/10 text-white ring-1 ring-purple-500/40'
-                          : 'border-[var(--admin-border)] bg-[var(--admin-input-bg)] text-[var(--admin-text-muted)] hover:border-zinc-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <FiChevronDown className={formSectionType === 'dropdown' ? 'text-purple-400' : 'text-zinc-400'} size={15} />
-                        <span className="text-xs font-bold text-[var(--admin-text-main)]">Dropdown Buka-Tutup</span>
-                      </div>
-                      <p className="text-[11px] text-[var(--admin-text-muted)] leading-relaxed">
-                        Tombol interaktif. Pengunjung bisa mengklik untuk buka / tutup daftar link.
-                      </p>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3. Dropdown Options (Conditional) */}
-                {formSectionType === 'dropdown' && (
-                  <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-2">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formSectionDefaultOpen}
-                        onChange={(e) => setFormSectionDefaultOpen(e.target.checked)}
-                        className="rounded accent-purple-600 w-4 h-4 cursor-pointer"
-                      />
-                      <span className="text-xs text-[var(--admin-text-main)]">
-                        <strong className="font-semibold">Default Terbuka</strong> (Saat halaman bio dibuka, daftar link section ini langsung terbuka)
-                      </span>
-                    </label>
-                    <p className="text-[11px] text-zinc-400 pl-7">
-                      Jika dinonaktifkan, section ini akan tertutup secara default dan pengunjung harus mengkliknya untuk melihat isi tautan.
-                    </p>
-                  </div>
+                  </>
                 )}
 
-                {/* 4. Active Status Toggle */}
-                <div className="pt-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formSectionActive}
-                      onChange={(e) => setFormSectionActive(e.target.checked)}
-                      className="rounded accent-[#D90429] w-4 h-4 cursor-pointer"
-                    />
-                    <span className="text-xs text-[var(--admin-text-main)]">
-                      Status Aktif (Tampilkan section ini di halaman publik)
-                    </span>
-                  </label>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => toggleActive(item.id)} className={iconButton} aria-pressed={!inactive} aria-label={inactive ? `Aktifkan ${item.title}` : `Nonaktifkan ${item.title}`} title={inactive ? 'Nonaktif' : 'Aktif'}>
+                    {inactive ? <FiEyeOff size={14} /> : <FiEye size={14} />}
+                  </button>
+                  <button onClick={() => (header ? openSectionModal(item) : openLinkModal(item))} className={iconButton} aria-label={`Edit ${item.title}`}><FiEdit2 size={14} /></button>
+                  <button onClick={() => setToDelete(item)} className={`${iconButton} ui-btn-ghost`} aria-label={`Hapus ${item.title}`}><FiTrash2 size={14} /></button>
                 </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
-                {/* Submit Buttons */}
-                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 pt-4 border-t border-[var(--admin-border)]">
-                  <button
-                    type="button"
-                    onClick={closeSectionModal}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[var(--admin-border)] text-xs sm:text-sm font-medium hover:bg-white/5 cursor-pointer text-center"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs sm:text-sm font-semibold shadow-md shadow-[#D90429]/20 cursor-pointer text-center"
-                  >
-                    {editingSection ? 'Simpan Section' : 'Tambahkan Section'}
-                  </button>
-                </div>
-              </form>
+      {/* Bilah simpan: perubahan baru tayang setelah disimpan */}
+      {dirty && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-surface)]" role="region" aria-label="Perubahan belum disimpan">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium">Ada perubahan yang belum disimpan</p>
+            <div className="flex gap-2">
+              <button onClick={discard} disabled={saving} className="ui-btn ui-btn-sm">Buang</button>
+              <button onClick={save} disabled={saving} className="ui-btn ui-btn-sm ui-btn-primary">{saving ? 'Menyimpan…' : 'Simpan & tayangkan'}</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Modal link ── */}
+      {linkModal && (
+        <Modal
+          title={linkModal.id ? 'Edit link' : 'Tambah link'}
+          size="lg"
+          onClose={() => setLinkModal(null)}
+          footer={
+            <>
+              {linkModal.id && <button type="button" onClick={() => resetClicks(linkModal.id)} className="ui-btn ui-btn-ghost sm:mr-auto">Reset klik ({clicks[linkModal.id] || 0})</button>}
+              <button type="button" onClick={() => setLinkModal(null)} className="ui-btn">Batal</button>
+              <button type="submit" form="link-form" className="ui-btn ui-btn-primary">{linkModal.id ? 'Simpan' : 'Tambahkan'}</button>
+            </>
+          }
+        >
+          <form id="link-form" onSubmit={submitLink} className="space-y-4" noValidate>
+            <Field id="l-title" label="Judul">
+              <input id="l-title" className="ui-input" value={form.title} maxLength={80} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Wisuda UB Periode VII · Softfile" />
+            </Field>
+            <Field id="l-sub" label="Deskripsi singkat (opsional)">
+              <input id="l-sub" className="ui-input" value={form.subtitle} maxLength={120} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} />
+            </Field>
+            <Field id="l-url" label="URL tujuan" hint="Contoh: https://drive.google.com/…, https://wa.me/62…, atau /live/nama-event">
+              <input id="l-url" className="ui-input font-mono" inputMode="url" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
+            </Field>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {!linkModal.id && (
+                <Field id="l-section" label="Masuk ke section">
+                  <select id="l-section" className="ui-input" value={form.sectionId} onChange={(e) => setForm({ ...form, sectionId: e.target.value })}>
+                    <option value="">Paling atas (tanpa section)</option>
+                    {sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  </select>
+                </Field>
+              )}
+              <Field id="l-badge" label="Label kecil (opsional)" hint="Contoh: BARU, PROMO">
+                <input id="l-badge" className="ui-input" value={form.badge} maxLength={16} onChange={(e) => setForm({ ...form, badge: e.target.value })} />
+              </Field>
+            </div>
+
+            {/* Logo */}
+            <fieldset className="rounded-xl border border-[var(--admin-border)] p-4 space-y-3">
+              <legend className="px-1 text-sm font-semibold">Logo atau ikon</legend>
+              <div className="flex gap-1 overflow-x-auto" role="tablist">
+                {[['client', `Client logo (${clientLogos.length})`], ['upload', 'Unggah'], ['url', 'URL gambar'], ['icon', 'Ikon']].map(([id, label]) => (
+                  <button key={id} type="button" role="tab" aria-selected={logoTab === id} onClick={() => setLogoTab(id)} className="ui-tab">{label}</button>
+                ))}
+              </div>
+
+              {logoTab === 'client' && (
+                clientLogos.length === 0 ? (
+                  <p className="text-sm text-[var(--admin-text-muted)]">Belum ada client logo. Tambahkan di menu Client Logos.</p>
+                ) : (
+                  <>
+                    <input type="search" aria-label="Cari client logo" placeholder="Cari client logo" className="ui-input" value={logoSearch} onChange={(e) => setLogoSearch(e.target.value)} />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                      {clientLogos.filter((c) => (c.client_name || '').toLowerCase().includes(logoSearch.toLowerCase())).map((c) => {
+                        const selected = form.clientLogoId === c.id;
+                        return (
+                          <button key={c.id} type="button" onClick={() => setForm((f) => ({ ...f, clientLogoId: c.id, logoUrl: c.logo_url, title: f.title.trim() ? f.title : c.client_name }))} aria-pressed={selected}
+                            className={`flex items-center gap-2 p-2 rounded-lg border text-left ${selected ? 'border-[var(--admin-primary)] bg-[var(--admin-hover-bg)]' : 'border-[var(--admin-border)] hover:bg-[var(--admin-hover-bg)]'}`}>
+                            <img src={c.logo_url} alt="" loading="lazy" className="w-8 h-8 object-contain shrink-0" />
+                            <span className="text-sm truncate flex-1">{c.client_name}</span>
+                            {selected && <FiCheck size={14} aria-hidden="true" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )
+              )}
+
+              {logoTab === 'upload' && (
+                <div>
+                  <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={upload} className="sr-only" id="l-file" />
+                  <label htmlFor="l-file" className="ui-btn w-full border-dashed cursor-pointer"><FiUpload size={15} /> {uploading ? 'Mengunggah…' : 'Pilih gambar (PNG, JPG, WebP, GIF · maks 2MB)'}</label>
+                  {form.logoUrl && <img src={form.logoUrl} alt="Pratinjau logo" className="mt-3 w-16 h-16 object-contain rounded-lg border border-[var(--admin-border)]" />}
+                </div>
+              )}
+
+              {logoTab === 'url' && (
+                <input type="url" aria-label="URL gambar" className="ui-input" placeholder="https://domain.com/logo.png" value={form.logoUrl} onChange={(e) => setForm({ ...form, logoUrl: e.target.value, clientLogoId: '' })} />
+              )}
+
+              {logoTab === 'icon' && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {PRESET_ICONS.map(({ id, label, Icon }) => (
+                    <button key={id} type="button" aria-pressed={form.icon === id} onClick={() => setForm({ ...form, icon: id, logoUrl: '', clientLogoId: '' })}
+                      className={`ui-btn ${form.icon === id ? 'border-[var(--admin-primary)] bg-[var(--admin-hover-bg)]' : ''}`}><Icon size={15} /> {label}</button>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+
+            <div className="border-t border-[var(--admin-border)] pt-3">
+              <Toggle checked={form.isHighlighted} onChange={(v) => setForm({ ...form, isHighlighted: v })} label="Link unggulan" hint="Tampil sebagai kartu putih yang menonjol." />
+              <Toggle checked={form.openNewTab} onChange={(v) => setForm({ ...form, openNewTab: v })} label="Buka di tab baru" />
+              <Toggle checked={form.isActive} onChange={(v) => setForm({ ...form, isActive: v })} label="Tampilkan di halaman publik" />
+            </div>
+
+            {formError && <p role="alert" className="text-sm text-[var(--admin-danger)]">{formError}</p>}
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Modal section ── */}
+      {sectionModal && (
+        <Modal
+          title={sectionModal.id ? 'Edit section' : 'Section baru'}
+          description="Section mengelompokkan link di bawahnya pada halaman bio."
+          onClose={() => setSectionModal(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => setSectionModal(null)} className="ui-btn">Batal</button>
+              <button type="submit" form="section-form" className="ui-btn ui-btn-primary">{sectionModal.id ? 'Simpan' : 'Tambahkan'}</button>
+            </>
+          }
+        >
+          <form id="section-form" onSubmit={submitSection} className="space-y-4">
+            <Field id="s-title" label="Judul section">
+              <input id="s-title" className="ui-input" value={sectionForm.title} maxLength={60} onChange={(e) => setSectionForm({ ...sectionForm, title: e.target.value })} placeholder="Event & Kegiatan" />
+            </Field>
+            <fieldset>
+              <legend className="ui-label">Tampilan</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {[['normal', 'Biasa', 'Link selalu terlihat.'], ['dropdown', 'Dropdown', 'Pengunjung buka-tutup.']].map(([value, label, hint]) => (
+                  <button key={value} type="button" aria-pressed={sectionForm.sectionType === value} onClick={() => setSectionForm({ ...sectionForm, sectionType: value })}
+                    className={`text-left p-3 rounded-xl border ${sectionForm.sectionType === value ? 'border-[var(--admin-primary)] bg-[var(--admin-hover-bg)]' : 'border-[var(--admin-border)] hover:bg-[var(--admin-hover-bg)]'}`}>
+                    <span className="block text-sm font-semibold">{label}</span>
+                    <span className="block text-sm text-[var(--admin-text-muted)]">{hint}</span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            {sectionForm.sectionType === 'dropdown' && <Toggle checked={sectionForm.defaultOpen} onChange={(v) => setSectionForm({ ...sectionForm, defaultOpen: v })} label="Terbuka saat halaman dimuat" />}
+            <Toggle checked={sectionForm.isActive} onChange={(v) => setSectionForm({ ...sectionForm, isActive: v })} label="Tampilkan di halaman publik" />
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Modal profil ── */}
+      {profileOpen && profileDraft && (
+        <Modal
+          title="Profil & bio"
+          description="Tampilan bagian atas halaman link.snaphub.my.id."
+          size="lg"
+          onClose={() => setProfileOpen(false)}
+          footer={
+            <>
+              <button type="button" onClick={() => setProfileOpen(false)} className="ui-btn">Batal</button>
+              <button type="submit" form="profile-form" className="ui-btn ui-btn-primary">Terapkan</button>
+            </>
+          }
+        >
+          <form id="profile-form" onSubmit={submitProfile} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field id="p-name" label="Nama brand">
+                <input id="p-name" required className="ui-input" value={profileDraft.name} onChange={(e) => setProfileDraft({ ...profileDraft, name: e.target.value })} />
+              </Field>
+              <Field id="p-handle" label="Handle">
+                <input id="p-handle" className="ui-input" value={profileDraft.handle || ''} onChange={(e) => setProfileDraft({ ...profileDraft, handle: e.target.value })} placeholder="@snaphub.id" />
+              </Field>
+            </div>
+            <Field id="p-bio" label="Bio">
+              <textarea id="p-bio" rows={2} className="ui-input resize-none" value={profileDraft.bio || ''} onChange={(e) => setProfileDraft({ ...profileDraft, bio: e.target.value })} />
+            </Field>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {SOCIALS.map((s) => (
+                <Field key={s.platform} id={`p-${s.platform}`} label={s.label}>
+                  <input id={`p-${s.platform}`} className="ui-input" inputMode="url" value={socialValue(s.platform)} onChange={(e) => setSocial(s.platform, s.label, e.target.value)} placeholder={s.placeholder} />
+                </Field>
+              ))}
+            </div>
+
+            <div className="border-t border-[var(--admin-border)] pt-4 space-y-3">
+              <Toggle checked={profileDraft.concierge?.show !== false} onChange={(v) => setConcierge({ show: v })} label="Tampilkan kotak konsultasi di bawah daftar link" />
+              {profileDraft.concierge?.show !== false && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field id="c-title" label="Judul"><input id="c-title" className="ui-input" value={profileDraft.concierge?.title ?? ''} onChange={(e) => setConcierge({ title: e.target.value })} /></Field>
+                  <Field id="c-btn" label="Teks tombol"><input id="c-btn" className="ui-input" value={profileDraft.concierge?.buttonText ?? ''} onChange={(e) => setConcierge({ buttonText: e.target.value })} /></Field>
+                  <Field id="c-sub" label="Deskripsi"><input id="c-sub" className="ui-input" value={profileDraft.concierge?.subtitle ?? ''} onChange={(e) => setConcierge({ subtitle: e.target.value })} /></Field>
+                  <Field id="c-url" label="URL tombol"><input id="c-url" className="ui-input" inputMode="url" value={profileDraft.concierge?.buttonUrl ?? ''} onChange={(e) => setConcierge({ buttonUrl: e.target.value })} /></Field>
+                </div>
+              )}
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {toDelete && (
+        <Modal
+          title={isHeader(toDelete) ? 'Hapus section?' : 'Hapus link?'}
+          description={isHeader(toDelete) ? `Section “${toDelete.title}” dihapus. Link di dalamnya tetap ada dan ikut section di atasnya.` : `“${toDelete.title}” akan hilang dari halaman bio setelah Anda menyimpan.`}
+          size="sm"
+          onClose={() => setToDelete(null)}
+          footer={
+            <>
+              <button onClick={() => setToDelete(null)} className="ui-btn">Batal</button>
+              <button onClick={confirmDelete} className="ui-btn ui-btn-solid-danger">Hapus</button>
+            </>
+          }
+        />
       )}
     </div>
   );

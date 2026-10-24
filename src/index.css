@@ -22,6 +22,11 @@
   --admin-border-subtle: rgba(255, 255, 255, 0.05);
   --admin-text-main: #ffffff;
   --admin-text-muted: #8E7B7D;
+  --admin-primary: #D90429;
+  --admin-primary-hover: #B80323;
+  --admin-ok: #34d399;
+  --admin-warn: #fbbf24;
+  --admin-danger: #f87171;
   --admin-text-subtle: #4b5563;
   --admin-sidebar-bg: #0a0a0a;
   --admin-hover-bg: rgba(255, 255, 255, 0.05);
@@ -42,6 +47,11 @@
   --admin-border-subtle: #f8f1f2;
   --admin-text-main: #3a2e30;
   --admin-text-muted: #8a7b7d;
+  --admin-primary: #C4032A;
+  --admin-primary-hover: #A30322;
+  --admin-ok: #047857;
+  --admin-warn: #b45309;
+  --admin-danger: #dc2626;
   --admin-text-subtle: #b5a8aa;
   --admin-sidebar-bg: #ffffff;
   --admin-hover-bg: #fcf6f7;
@@ -750,4 +760,116 @@
     opacity: 1;
     transform: scale(1) translateY(0);
   }
-}
+}
+
+
+@layer components {
+/* ========================================
+   ADMIN UI KIT  — satu bahasa visual untuk Antrian, Sesi Foto, Link
+   Datar, satu aksen (merah brand), status lewat titik + teks.
+   ======================================== */
+.ui-card {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+}
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0 0.95rem;
+  border-radius: 10px;
+  border: 1px solid var(--admin-border);
+  background: transparent;
+  color: var(--admin-text-main);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.ui-btn:hover { background: var(--admin-hover-bg); }
+.ui-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ui-btn-primary { background: var(--admin-primary); border-color: transparent; color: #fff; }
+.ui-btn-primary:hover { background: var(--admin-primary-hover); }
+.ui-btn-ok { background: var(--admin-ok); border-color: transparent; color: #04130d; }
+.ui-btn-ok:hover { background: var(--admin-ok); opacity: 0.9; }
+.ui-btn-danger { color: var(--admin-danger); border-color: color-mix(in srgb, var(--admin-danger) 45%, transparent); }
+.ui-btn-danger:hover { background: color-mix(in srgb, var(--admin-danger) 12%, transparent); }
+.ui-btn-solid-danger { background: var(--admin-danger); border-color: transparent; color: #fff; }
+.ui-btn-ghost { border-color: transparent; color: var(--admin-text-muted); }
+.ui-btn-ghost:hover { color: var(--admin-text-main); }
+.ui-btn-sm { min-height: 36px; padding: 0 0.75rem; font-size: 0.8125rem; }
+.ui-btn-icon { width: 40px; padding: 0; }
+.ui-btn-lg { min-height: 52px; font-size: 1rem; border-radius: 12px; }
+
+.ui-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-input-bg);
+  color: var(--admin-text-main);
+  font-size: 0.9375rem; /* 15px: cegah zoom otomatis iOS */
+}
+.ui-input::placeholder { color: var(--admin-text-muted); opacity: 0.75; }
+.ui-input:focus { outline: none; border-color: var(--admin-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-primary) 20%, transparent); }
+.ui-label { display: block; margin-bottom: 0.35rem; font-size: 0.8125rem; font-weight: 600; color: var(--admin-text-muted); }
+.ui-hint { margin-top: 0.3rem; font-size: 0.8125rem; color: var(--admin-text-muted); }
+
+.ui-tab {
+  min-height: 36px;
+  padding: 0 0.85rem;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--admin-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ui-tab:hover { color: var(--admin-text-main); background: var(--admin-hover-bg); }
+.ui-tab[aria-pressed='true'], .ui-tab[aria-selected='true'] {
+  color: var(--admin-text-main);
+  background: var(--admin-hover-bg);
+  border-color: var(--admin-border);
+}
+
+/* Status: titik berwarna + teks (tidak mengandalkan warna saja) */
+.ui-status { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; font-weight: 600; color: var(--admin-text-main); }
+.ui-status::before { content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--admin-text-muted); flex-shrink: 0; }
+.ui-status[data-tone='ok']::before { background: var(--admin-ok); }
+.ui-status[data-tone='warn']::before { background: var(--admin-warn); }
+.ui-status[data-tone='live']::before { background: var(--admin-primary); }
+.ui-status[data-tone='muted'] { color: var(--admin-text-muted); }
+
+.ui-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--admin-border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+}
+
+.ui-modal { animation: adminModalIn 0.16s ease-out both; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Hormati preferensi "kurangi gerakan" */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+}

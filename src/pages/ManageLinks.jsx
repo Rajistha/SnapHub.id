@@ -1,174 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import toast, { Toaster } from 'react-hot-toast';
-import { FiArrowLeft, FiSun, FiMoon, FiExternalLink, FiLink } from 'react-icons/fi';
+import React from 'react';
+import { Toaster } from 'react-hot-toast';
+import { FiArrowLeft, FiSun, FiMoon, FiExternalLink } from 'react-icons/fi';
+import useAdminSession from '../lib/useAdminSession';
+import { getAdminUrl, getBioUrl } from '../lib/appUrls';
 import AdminLinks from '../components/AdminLinks';
-
-const getAdminUrl = () => {
-  if (typeof window === 'undefined') return '/admin';
-  const host = window.location.hostname;
-  if (host.includes('snaphub.my.id')) {
-    return 'https://snaphub.my.id/admin';
-  }
-  return '/admin';
-};
-
-const getBioUrl = () => {
-  if (typeof window === 'undefined') return '/links';
-  const host = window.location.hostname;
-  if (host === 'localhost' || host === '127.0.0.1') {
-    return '/links';
-  }
-  return 'https://link.snaphub.my.id';
-};
+import AdminLogin from '../components/ui/AdminLogin';
 
 const ManageLinks = () => {
-  const [session, setSession] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [theme, setTheme] = useState(localStorage.getItem('adminTheme') || 'dark');
+  const { session, loading, theme, toggleTheme } = useAdminSession();
 
-  useEffect(() => {
-    localStorage.setItem('adminTheme', theme);
-  }, [theme]);
-
-  useEffect(() => {
-    const robotsMeta = document.querySelector('meta[name="robots"]');
-    const previousContent = robotsMeta?.getAttribute('content');
-    robotsMeta?.setAttribute('content', 'noindex, nofollow');
-    return () => {
-      if (previousContent) robotsMeta?.setAttribute('content', previousContent);
-    };
-  }, []);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setAuthLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      toast.success('Login berhasil!');
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#050505]">
-        <div className="w-10 h-10 border-4 border-[#D90429] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#050505]"><div className="w-8 h-8 border-[3px] border-[#D90429] border-t-transparent rounded-full animate-spin" role="status" aria-label="Memuat" /></div>;
   }
-
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#050505] p-5 relative overflow-hidden">
-        <Toaster position="top-center" toastOptions={{ style: { background: '#333', color: '#fff' } }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#D90429]/10 blur-[100px] rounded-full pointer-events-none" />
-        <div className="glass-dark border border-white/10 p-8 rounded-3xl w-full max-w-sm relative z-10">
-          <div className="text-center mb-8">
-            <img src="/icons.svg" alt="SnapHub Logo" className="h-10 mx-auto mb-4" />
-            <h1 className="text-white text-2xl font-bold font-heading">Manage Links</h1>
-            <p className="text-gray-400 text-sm mt-1">Login untuk mengelola Bio Links & Linktree.</p>
-          </div>
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#D90429] transition-colors"
-                placeholder="admin@snaphub.id"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#D90429] transition-colors"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            <button type="submit" className="btn-primary w-full mt-4 flex justify-center py-3">
-              Login
-            </button>
-          </form>
-          <div className="mt-6 text-center">
-            <a href={getAdminUrl()} className="text-gray-500 hover:text-white text-sm transition-colors flex items-center justify-center gap-2">
-              <FiArrowLeft /> Website
-            </a>
-          </div>
-        </div>
-      </div>
+      <>
+        <Toaster position="top-center" />
+        <AdminLogin title="Kelola Link" subtitle="Masuk untuk mengatur halaman bio dan link." />
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)] transition-colors duration-300" data-theme={theme}>
+    <div className="min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)]" data-theme={theme}>
       <Toaster position="top-center" toastOptions={{ style: { background: '#222', color: '#fff' } }} />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-10">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between gap-4">
+        <header className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 min-w-0">
-            <a
-              href={getAdminUrl()}
-              className="shrink-0 p-2.5 rounded-xl border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
-              title="Kembali ke Dashboard Utama"
-            >
-              <FiArrowLeft size={16} />
-            </a>
+            <a href={getAdminUrl()} className="ui-btn ui-btn-icon" aria-label="Kembali ke Admin"><FiArrowLeft size={16} /></a>
             <div className="min-w-0">
-              <h2 className="text-xl font-bold text-[var(--admin-text-main)] font-heading leading-tight">
-                Kelola Link & Bio
-              </h2>
-              <p className="text-[var(--admin-text-muted)] text-xs mt-0.5">
-                app.snaphub.my.id/links • Atur linktree, kegiatan & profil publik
-              </p>
+              <h1 className="text-xl font-semibold leading-tight">Link &amp; bio</h1>
+              <p className="text-sm text-[var(--admin-text-muted)]">Atur halaman link.snaphub.my.id.</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <a
-              href={getBioUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] border border-[var(--admin-accent)]/20 hover:border-[var(--admin-accent)]/40 text-xs font-semibold transition-colors"
-            >
-              <FiExternalLink size={13} />
-              <span className="hidden sm:inline">Lihat Halaman Bio</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <a href={getBioUrl()} target="_blank" rel="noopener noreferrer" className="ui-btn">
+              <FiExternalLink size={14} /> <span className="hidden sm:inline">Lihat halaman</span>
             </a>
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2.5 rounded-xl border border-[var(--admin-border)] text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors"
-              title={theme === 'dark' ? 'Dark' : 'Light'}
-            >
+            <button onClick={toggleTheme} className="ui-btn ui-btn-icon" aria-label={theme === 'dark' ? 'Ganti ke tema terang' : 'Ganti ke tema gelap'}>
               {theme === 'dark' ? <FiMoon size={16} /> : <FiSun size={16} />}
             </button>
           </div>
-        </div>
+        </header>
 
         <AdminLinks />
       </main>

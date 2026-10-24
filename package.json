@@ -21,6 +21,7 @@
     "framer-motion": "^13.0.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-calendar": "^6.0.1",
     "react-dom": "^19.2.8",

@@ -11,6 +11,9 @@ const Linktree = lazy(() => import('./pages/Linktree'));
 const ManageLinks = lazy(() => import('./pages/ManageLinks'));
 const QueueGuest = lazy(() => import('./pages/QueueGuest'));
 const QueueDisplay = lazy(() => import('./pages/QueueDisplay'));
+const ManageShortLinks = lazy(() => import('./pages/ManageShortLinks'));
+const ShortRedirect = lazy(() => import('./pages/ShortRedirect'));
+const QueueQr = lazy(() => import('./pages/QueueQr'));
 const QueueAdmin = lazy(() => import('./pages/QueueAdmin'));
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -44,6 +47,46 @@ const isQueueSubdomain = typeof window !== 'undefined' && (
   window.location.hostname.startsWith('queue.')
 );
 
+// <Navigate> hanya untuk rute internal; pindah ke domain lain harus lewat location.
+function ExternalRedirect({ to }) {
+  useEffect(() => {
+    window.location.replace(to);
+  }, [to]);
+  return <PageLoader />;
+}
+
+// Deteksi apakah sedang diakses dari subdomain dashboard admin (spanel.snaphub.my.id)
+const isPanelSubdomain = typeof window !== 'undefined' && window.location.hostname.startsWith('spanel.');
+
+const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+// Alamat /admin lama di domain utama dipindahkan ke spanel.snaphub.my.id tanpa awalan /admin.
+const stripAdmin = (pathname) => pathname.replace(/^\/admin/, '') || '/';
+
+function AdminRedirect() {
+  const { pathname, search, hash } = useLocation();
+  return <ExternalRedirect to={`https://spanel.snaphub.my.id${stripAdmin(pathname)}${search}${hash}`} />;
+}
+
+// Bookmark lama spanel.snaphub.my.id/admin/... diarahkan ke path bersih.
+function PanelLegacyRedirect() {
+  const { pathname, search, hash } = useLocation();
+  return <Navigate to={`${stripAdmin(pathname)}${search}${hash}`} replace />;
+}
+
+// Dashboard admin tidak boleh diindeks mesin pencari.
+function NoIndex() {
+  useEffect(() => {
+    const robots = document.querySelector('meta[name="robots"]');
+    const previous = robots?.getAttribute('content');
+    robots?.setAttribute('content', 'noindex, nofollow');
+    return () => {
+      if (previous) robots?.setAttribute('content', previous);
+    };
+  }, []);
+  return null;
+}
+
 // Scroll ke elemen #hash saat navigasi (fix React Router tidak handle hash anchor)
 function ScrollToHash() {
   const { pathname, hash } = useLocation();
@@ -74,11 +117,22 @@ function App() {
     <Router>
       <ErrorBoundary>
       <ScrollToHash />
+      {isPanelSubdomain && <NoIndex />}
       <Suspense fallback={<PageLoader />}>
       <Routes>
+        {/* 0. Subdomain spanel.snaphub.my.id: dashboard admin */}
+        {isPanelSubdomain && (
+          <>
+            <Route path="/admin/*" element={<PanelLegacyRedirect />} />
+            <Route path="/" element={<Admin />} />
+            <Route path="/*" element={<Admin />} />
+          </>
+        )}
+
         {/* 1. Subdomain queue.snaphub.my.id: tiket tamu & TV display booth */}
         {isQueueSubdomain && (
           <>
+            <Route path="/:slug/qr" element={<QueueQr />} />
             <Route path="/:slug/display" element={<QueueDisplay />} />
             <Route path="/display" element={<QueueDisplay />} />
             <Route path="/:slug" element={<QueueGuest />} />
@@ -92,7 +146,7 @@ function App() {
           <>
             <Route path="/:slug" element={<LiveSesi />} />
             <Route path="/live/:slug" element={<LiveSesi />} />
-            <Route path="/" element={<Navigate to="https://snaphub.my.id" replace />} />
+            <Route path="/" element={<ExternalRedirect to="https://snaphub.my.id" />} />
             <Route path="*" element={<LiveSesi />} />
           </>
         )}
@@ -109,6 +163,7 @@ function App() {
         {isAppSubdomain && (
           <>
             <Route path="/queue" element={<QueueAdmin />} />
+            <Route path="/short" element={<ManageShortLinks />} />
             <Route path="/links" element={<ManageLinks />} />
             <Route path="/admin/links" element={<ManageLinks />} />
             <Route path="/kelola" element={<ManageLinks />} />
@@ -124,11 +179,19 @@ function App() {
 
         {/* 5. Domain Utama snaphub.my.id & Localhost */}
         <Route path="/" element={<Home />} />
-        <Route path="/admin/*" element={<Admin />} />
-        <Route path="/admin/links" element={<ManageLinks />} />
+        {isLocalHost ? (
+          <>
+            <Route path="/admin/*" element={<Admin />} />
+            <Route path="/admin/links" element={<ManageLinks />} />
+          </>
+        ) : (
+          <Route path="/admin/*" element={<AdminRedirect />} />
+        )}
+        <Route path="/queue/:slug/qr" element={<QueueQr />} />
         <Route path="/queue/:slug/display" element={<QueueDisplay />} />
         <Route path="/queue/:slug" element={<QueueGuest />} />
         <Route path="/queue" element={<QueueAdmin />} />
+        <Route path="/short" element={<ManageShortLinks />} />
         <Route path="/links" element={<Linktree />} />
         <Route path="/linktree" element={<Navigate to="/links" replace />} />
         <Route path="/bio" element={<Navigate to="/links" replace />} />
@@ -136,6 +199,8 @@ function App() {
         <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
         <Route path="/live/:slug" element={<LiveSesi />} />
         <Route path="/crew/:slug" element={<CrewSesi />} />
+        {/* Shortlink: snaphub.my.id/<slug>. Rute statis di atas selalu diprioritaskan. */}
+        <Route path="/:slug" element={<ShortRedirect />} />
       </Routes>
       </Suspense>
       </ErrorBoundary>

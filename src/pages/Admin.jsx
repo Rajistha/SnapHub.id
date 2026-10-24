@@ -4,7 +4,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, 
   FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, 
-  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget, FiUsers 
+  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget, FiUsers, FiScissors 
 } from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
@@ -50,7 +50,11 @@ const Admin = () => {
   }, []);
 
   // Derive activeTab from URL
-  const pathParts = location.pathname.split('/').filter(Boolean);
+  // Di spanel.snaphub.my.id path bersih (/schedule); di localhost tetap /admin/schedule.
+  const onPanelHost = typeof window !== 'undefined' && window.location.hostname.startsWith('spanel.');
+  const base = onPanelHost ? '' : '/admin';
+  const rawParts = location.pathname.split('/').filter(Boolean);
+  const pathParts = onPanelHost ? ['', ...rawParts] : rawParts; // indeks 1 = nama tab pada kedua mode
   let activeTab = 'dashboard';
 
   if (pathParts[1] === 'schedule') activeTab = 'schedule';
@@ -69,18 +73,18 @@ const Admin = () => {
   }
 
   const setActiveTab = (tabId) => {
-    if (tabId === 'dashboard') navigate('/admin/dashboard');
-    else if (tabId === 'schedule') navigate('/admin/schedule');
-    else if (tabId === 'gallery') navigate('/admin/gallery');
-    else if (tabId === 'reviews') navigate('/admin/reviews');
-    else if (tabId === 'logos') navigate('/admin/logos');
-    else if (tabId === 'pricelist') navigate('/admin/pricelist');
-    else if (tabId === 'links') navigate('/admin/links');
-    else if (tabId === 'finance_events') navigate('/admin/finance/events');
-    else if (tabId === 'finance_operational') navigate('/admin/finance/operational');
-    else if (tabId === 'finance_recap') navigate('/admin/finance/recap');
-    else if (tabId === 'finance_target') navigate('/admin/finance/target');
-    else navigate(`/admin/${tabId}`);
+    if (tabId === 'dashboard') navigate(`${base}/dashboard`);
+    else if (tabId === 'schedule') navigate(`${base}/schedule`);
+    else if (tabId === 'gallery') navigate(`${base}/gallery`);
+    else if (tabId === 'reviews') navigate(`${base}/reviews`);
+    else if (tabId === 'logos') navigate(`${base}/logos`);
+    else if (tabId === 'pricelist') navigate(`${base}/pricelist`);
+    else if (tabId === 'links') navigate(`${base}/links`);
+    else if (tabId === 'finance_events') navigate(`${base}/finance/events`);
+    else if (tabId === 'finance_operational') navigate(`${base}/finance/operational`);
+    else if (tabId === 'finance_recap') navigate(`${base}/finance/recap`);
+    else if (tabId === 'finance_target') navigate(`${base}/finance/target`);
+    else navigate(`${base}/${tabId}`);
   };
 
   useEffect(() => {
@@ -231,6 +235,14 @@ const Admin = () => {
           icon: <FiLink size={18} />, 
           isLink: true, 
           to: isLocalhost ? '/admin/links' : 'https://app.snaphub.my.id/links',
+          isExternal: !isLocalhost 
+        },
+        { 
+          id: 'short', 
+          label: 'Shortlink', 
+          icon: <FiScissors size={18} />, 
+          isLink: true, 
+          to: isLocalhost ? '/short' : 'https://app.snaphub.my.id/short',
           isExternal: !isLocalhost 
         },
         { 

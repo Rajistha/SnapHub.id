@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
-import { Link } from 'react-router-dom';
 import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, SHARING_SOURCE, SHARING_DESCRIPTION, sessionPrice, eventTotal, voucherCount, eventSharing } from '../lib/photoSession';
 import SwipeableSessionRow from '../components/SwipeableSessionRow';
 import { FiPlus, FiMinus, FiSearch, FiTrash2, FiEdit2, FiSave, FiX, FiArrowLeft, FiSun, FiMoon, FiLink, FiCopy, FiChevronDown, FiChevronRight, FiEye, FiEyeOff, FiTag, FiSettings } from 'react-icons/fi';
@@ -27,7 +26,7 @@ const getAdminUrl = () => {
   if (typeof window === 'undefined') return '/admin';
   const host = window.location.hostname;
   if (host === 'app.snaphub.my.id' || host.startsWith('app.')) {
-    return 'https://snaphub.my.id/admin';
+    return 'https://spanel.snaphub.my.id';
   }
   return '/admin';
 };
@@ -45,6 +44,11 @@ const liveUrl = (event) => {
   const slug = slugify(event.name);
   const tokenStr = slug ? `${slug}-${event.share_token}` : event.share_token;
   return `${getLiveBaseUrl()}/${tokenStr}`;
+};
+
+const financeUrl = () => {
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1' ? '/admin/finance/events' : 'https://spanel.snaphub.my.id/finance/events';
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -684,12 +688,12 @@ const SesiFoto = () => {
                 )
               )}
 
-              <Link
-                to="/admin/finance/events"
+              <a
+                href={financeUrl()}
                 className="block text-center text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-accent)] transition-colors pt-1"
               >
                 Event baru ditambahkan lewat Keuangan Event →
-              </Link>
+              </a>
             </aside>
             )}
 
@@ -705,12 +709,12 @@ const SesiFoto = () => {
                         <h3 className="text-lg font-bold text-[var(--admin-text-main)] truncate">{selectedEvent.name}</h3>
                         <p className="text-xs text-[var(--admin-text-muted)] mt-1">{formatDate(selectedEvent.date)}</p>
                       </div>
-                      <Link
-                        to="/admin/finance/events"
+                      <a
+                        href={financeUrl()}
                         className="shrink-0 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-accent)] transition-colors"
                       >
                         Buka Keuangan →
-                      </Link>
+                      </a>
                     </div>
                     <p className="text-[11px] text-[var(--admin-text-muted)] mt-3">
                       Pemasukan dan sharing profit otomatis tercatat di Keuangan Event.
