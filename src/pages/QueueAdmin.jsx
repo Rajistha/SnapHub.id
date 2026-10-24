@@ -72,6 +72,7 @@ const QueueAdmin = () => {
   const [autoAddSession, setAutoAddSession] = useState(true);
   const [queueSearch, setQueueSearch] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
+  const [queueToDelete, setQueueToDelete] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('adminTheme', theme);
@@ -227,7 +228,7 @@ const QueueAdmin = () => {
 
       if (error) throw error;
       playChimeSound();
-      toast.success(`Memanggil nomor ${nextItem.queue_number} (${nextItem.customer_name})!`, { icon: '📢' });
+      toast.success(`Memanggil nomor ${nextItem.queue_number} (${nextItem.customer_name})!`);
     } catch (err) {
       console.error(err);
       toast.error('Gagal memanggil antrian');
@@ -248,7 +249,7 @@ const QueueAdmin = () => {
 
       if (error) throw error;
       playChimeSound();
-      toast.success(`Panggil ulang nomor ${item.queue_number}!`, { icon: '🔔' });
+      toast.success(`Panggil ulang nomor ${item.queue_number}!`);
     } catch {
       toast.error('Gagal panggil ulang');
     }
@@ -262,7 +263,7 @@ const QueueAdmin = () => {
         .eq('id', item.id);
 
       if (error) throw error;
-      toast('Antrian dilewati', { icon: '⏭️' });
+      toast('Antrian dilewati');
     } catch {
       toast.error('Gagal melewati antrian');
     }
@@ -298,7 +299,7 @@ const QueueAdmin = () => {
       }
 
       if (notify) {
-        toast.success(`Sesi antrian ${item.queue_number} selesai & dicatat ke laporan!`, { icon: '✅' });
+        toast.success(`Sesi antrian ${item.queue_number} selesai & dicatat ke laporan!`);
       }
     } catch (err) {
       console.error(err);
@@ -308,14 +309,13 @@ const QueueAdmin = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Hapus nomor antrian ini?')) return;
+  const executeDelete = async (id) => {
     try {
       const { error } = await supabase.from('event_queues').delete().eq('id', id);
       if (error) throw error;
       toast.success('Antrian dihapus');
     } catch {
-      toast.error('Gagal menghapus');
+      toast.error('Gagal menghapus antrian');
     }
   };
 
@@ -323,7 +323,23 @@ const QueueAdmin = () => {
   const getWaReminderUrl = (item) => {
     let phone = (item.customer_phone || '').replace(/[^0-9]/g, '');
     if (phone.startsWith('0')) phone = '62' + phone.slice(1);
-    const msg = `Halo Kak ${item.customer_name}! 📸\n\nAntrian photobooth SnapHub Anda (*#${item.queue_number}*) sudah dekat! Mohon segera merapat ke area photobooth agar gilirannya tidak terlewat ya. Terima kasih! ✨`;
+
+    const eventNameLine = selectedEvent?.name ? `Acara: ${selectedEvent.name}\n` : '';
+    const statusNotice = (item.status === 'called' || item.status === 'serving')
+      ? 'Saat ini nomor antrian Anda sedang dipanggil. Silakan langsung menuju ke booth photobooth dan tunjukkan pesan ini kepada kru kami.'
+      : 'Giliran sesi foto Anda akan segera tiba. Mohon kesediaannya untuk bersiap dan mendekat ke area photobooth.';
+
+    const msg = 
+`Yth. Kak ${item.customer_name},
+
+Pemberitahuan Antrian Photobooth SnapHub
+${eventNameLine}Nomor Antrian: *${item.queue_number}*
+
+${statusNotice}
+
+Terima kasih atas kerja samanya.
+Tim SnapHub Photobooth`;
+
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   };
 
@@ -931,7 +947,7 @@ const QueueAdmin = () => {
                                 </a>
                               )}
                               <button
-                                onClick={() => handleDelete(item.id)}
+                                onClick={() => setQueueToDelete(item)}
                                 className="p-1.5 rounded-lg border border-[var(--admin-border)] text-zinc-500 hover:text-red-400 hover:border-red-400/40 transition-colors cursor-pointer"
                                 title="Hapus Antrian"
                               >
@@ -1012,6 +1028,41 @@ const QueueAdmin = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI HAPUS ANTRIAN (In-App Modal) */}
+      {queueToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[var(--admin-card-bg)] border border-[var(--admin-border)] rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="inline-flex p-3 rounded-2xl bg-red-500/10 text-red-400 mb-3">
+              <FiTrash2 size={24} />
+            </div>
+            <h3 className="text-base font-bold text-[var(--admin-text-main)]">Hapus Antrian?</h3>
+            <p className="text-xs text-[var(--admin-text-muted)] mt-2">
+              Yakin ingin menghapus antrian nomor <strong className="text-[var(--admin-text-main)] font-mono">{queueToDelete.queue_number}</strong> ({queueToDelete.customer_name})?
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setQueueToDelete(null)}
+                className="flex-1 py-2 rounded-xl border border-[var(--admin-border)] text-xs font-semibold text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = queueToDelete.id;
+                  setQueueToDelete(null);
+                  executeDelete(id);
+                }}
+                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

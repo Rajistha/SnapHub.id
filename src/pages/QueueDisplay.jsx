@@ -4,27 +4,61 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiVolume2, FiMaximize2, FiMinimize2, FiUsers, FiClock } from 'react-icons/fi';
 
-// Audio chime for TV
+let displayAudioCtx = null;
+
+const unlockDisplayAudio = () => {
+  try {
+    if (!displayAudioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtxClass) displayAudioCtx = new AudioCtxClass();
+    }
+    if (displayAudioCtx && displayAudioCtx.state === 'suspended') {
+      displayAudioCtx.resume().catch(() => {});
+    }
+  } catch {}
+};
+
+// Rich professional TV chime
 const playChime = () => {
   try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    unlockDisplayAudio();
+    const ctx = displayAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
-    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.18); // E5
-    osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.36); // G5
-    osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime + 0.54); // C6
+    const t = ctx.currentTime;
+    const playNote = (freq, startTime, duration = 0.45, gainVal = 0.7) => {
+      const osc = ctx.createOscillator();
+      const oscHarmonic = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const gainHarmonic = ctx.createGain();
 
-    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.6);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
 
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+      oscHarmonic.type = 'sine';
+      oscHarmonic.frequency.setValueAtTime(freq * 2, startTime);
 
-    osc.start();
-    osc.stop(audioCtx.currentTime + 1.6);
+      gain.gain.setValueAtTime(gainVal, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+      gainHarmonic.gain.setValueAtTime(gainVal * 0.35, startTime);
+      gainHarmonic.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.7);
+
+      osc.connect(gain);
+      oscHarmonic.connect(gainHarmonic);
+      gain.connect(ctx.destination);
+      gainHarmonic.connect(ctx.destination);
+
+      osc.start(startTime);
+      oscHarmonic.start(startTime);
+      osc.stop(startTime + duration);
+      oscHarmonic.stop(startTime + duration);
+    };
+
+    playNote(523.25, t + 0.00, 0.45, 0.8);
+    playNote(659.25, t + 0.22, 0.45, 0.8);
+    playNote(783.99, t + 0.44, 0.45, 0.8);
+    playNote(1046.50, t + 0.66, 1.20, 0.9);
   } catch {}
 };
 
@@ -43,6 +77,17 @@ const QueueDisplay = () => {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Unlock Audio on user click/interaction
+  useEffect(() => {
+    const handleGesture = () => unlockDisplayAudio();
+    window.addEventListener('click', handleGesture, { passive: true });
+    window.addEventListener('keydown', handleGesture, { passive: true });
+    return () => {
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+    };
   }, []);
 
   // Fetch Event

@@ -4,45 +4,119 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiClock, FiUsers, FiCheckCircle, FiAlertCircle, 
-  FiBell, FiVolume2, FiShare2, FiRefreshCw, FiExternalLink, FiChevronRight 
+  FiBell, FiVolume2, FiShare2, FiRefreshCw, FiChevronRight,
+  FiCheck, FiX, FiRotateCcw, FiVolumeX
 } from 'react-icons/fi';
 import toast, { Toaster } from 'react-hot-toast';
 
-// Web Audio API beep/chime generator
-const playAlertSound = () => {
+// ============================================================================
+// AUDIO & HAPTIC ENGINE (Mobile Safari & Android Chrome Optimized)
+// ============================================================================
+
+let globalAudioCtx = null;
+let isAudioUnlocked = false;
+
+const getAudioContext = () => {
+  if (typeof window === 'undefined') return null;
+  if (!globalAudioCtx) {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtxClass) {
+      globalAudioCtx = new AudioCtxClass();
+    }
+  }
+  return globalAudioCtx;
+};
+
+// Unlock AudioContext on ANY user gesture (touch, click, keydown)
+const unlockAudio = () => {
   try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => {
+        isAudioUnlocked = true;
+      }).catch(() => {});
+    } else if (ctx.state === 'running') {
+      isAudioUnlocked = true;
+    }
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15); // A5
-    osc.frequency.setValueAtTime(1174.66, audioCtx.currentTime + 0.3); // D6
+    // Play a microscopic silent buffer to initialize iOS audio hardware pipeline
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+  } catch {}
+};
 
-    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+// Rich professional multi-tone chime (Airport & Executive Lounge Style)
+const playAlertSound = (volume = 0.9) => {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
 
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    const t = ctx.currentTime;
 
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.8);
-  } catch {
-    // Audio might be blocked without user interaction
+    const playNote = (freq, startTime, duration = 0.45, gainVal = 0.85) => {
+      const osc = ctx.createOscillator();
+      const oscHarmonic = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const gainHarmonic = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      oscHarmonic.type = 'sine';
+      oscHarmonic.frequency.setValueAtTime(freq * 2, startTime); // Harmonic overtone
+
+      gain.gain.setValueAtTime(gainVal * volume, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+      gainHarmonic.gain.setValueAtTime(gainVal * volume * 0.35, startTime);
+      gainHarmonic.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.7);
+
+      osc.connect(gain);
+      oscHarmonic.connect(gainHarmonic);
+      gain.connect(ctx.destination);
+      gainHarmonic.connect(ctx.destination);
+
+      osc.start(startTime);
+      oscHarmonic.start(startTime);
+      osc.stop(startTime + duration);
+      oscHarmonic.stop(startTime + duration);
+    };
+
+    // Ascending 4-tone sequence: C5 (523Hz) -> E5 (659Hz) -> G5 (784Hz) -> C6 (1046Hz)
+    playNote(523.25, t + 0.00, 0.45, 0.85);
+    playNote(659.25, t + 0.22, 0.45, 0.85);
+    playNote(783.99, t + 0.44, 0.45, 0.85);
+    playNote(1046.50, t + 0.66, 0.95, 0.95);
+
+    // Subtle echo response: G5 -> C6
+    playNote(783.99, t + 1.25, 0.35, 0.65);
+    playNote(1046.50, t + 1.48, 0.85, 0.85);
+  } catch (err) {
+    console.warn('Audio playback error:', err);
   }
 };
 
 const triggerHaptic = () => {
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
     try {
-      navigator.vibrate([300, 150, 300, 150, 400]);
+      navigator.vibrate([400, 180, 400, 180, 700]);
     } catch {}
   }
 };
 
 const slugify = (text) =>
   (text || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 const QueueGuest = () => {
   const { slug } = useParams();
@@ -54,13 +128,32 @@ const QueueGuest = () => {
   const [allQueues, setAllQueues] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
+  // Modals (Replacing browser popups)
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+
   // Form input
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
 
-  const previousStatusRef = useRef(null);
+  const lastAlertKeyRef = useRef(null);
 
-  // 1. Fetch Event Info
+  // 1. Attach user interaction listeners to unlock AudioContext on mobile
+  useEffect(() => {
+    const handleGesture = () => unlockAudio();
+    window.addEventListener('touchstart', handleGesture, { passive: true });
+    window.addEventListener('pointerdown', handleGesture, { passive: true });
+    window.addEventListener('click', handleGesture, { passive: true });
+    window.addEventListener('keydown', handleGesture, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('pointerdown', handleGesture);
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+    };
+  }, []);
+
+  // 2. Fetch Event Info with smart matching (avoids falling back to wrong event)
   useEffect(() => {
     fetchEvent();
   }, [slug]);
@@ -68,7 +161,7 @@ const QueueGuest = () => {
   const fetchEvent = async () => {
     setLoading(true);
     try {
-      // 1. Coba lewat RPC get_queue_event (security definer, selalu berhasil walau anon/tamu)
+      // 1. Coba lewat RPC get_queue_event
       if (token) {
         const { data: rpcData, error: rpcErr } = await supabase.rpc('get_queue_event', { p_token: token });
         if (rpcData && !rpcErr) {
@@ -78,21 +171,50 @@ const QueueGuest = () => {
         }
       }
 
-      // 2. Query langsung tabel financial_events
-      let query = supabase.from('financial_events').select('id, name, date, share_token');
+      // 2. Query langsung tabel financial_events by share_token
       if (token && token.length >= 8) {
-        query = query.eq('share_token', token);
-      }
-      const { data, error } = await query.maybeSingle();
-      if (error) throw error;
+        const { data, error } = await supabase
+          .from('financial_events')
+          .select('id, name, date, share_token')
+          .eq('share_token', token)
+          .maybeSingle();
 
-      if (!data) {
-        // Fallback coba ambil event terbaru bila tidak ditemukan
-        const { data: latest } = await supabase.from('financial_events').select('id, name, date, share_token').order('date', { ascending: false }).limit(1).maybeSingle();
-        setEvent(latest || null);
-      } else {
-        setEvent(data);
+        if (data && !error) {
+          setEvent(data);
+          setLoading(false);
+          return;
+        }
       }
+
+      // 3. Smart slug matching (mencocokkan kata kunci slug jika token berubah)
+      if (slug) {
+        const cleanSlug = slug.replace(/-[a-f0-9]{8,}$/i, '');
+        const words = cleanSlug.split('-').filter(w => w.length > 2);
+        
+        let matchQuery = supabase.from('financial_events').select('id, name, date, share_token');
+        if (words.length > 0) {
+          const firstWord = words[0];
+          matchQuery = matchQuery.ilike('name', `%${firstWord}%`);
+        }
+        const { data: matches } = await matchQuery.limit(5);
+        if (matches && matches.length > 0) {
+          // Cari yang slug-nya paling mendekati
+          const best = matches.find(m => slugify(m.name).includes(words[0])) || matches[0];
+          setEvent(best);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 4. Fallback jika hanya ada 1 event
+      const { data: latest } = await supabase
+        .from('financial_events')
+        .select('id, name, date, share_token')
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setEvent(latest || null);
     } catch (err) {
       console.error('Error fetching event:', err);
     } finally {
@@ -100,7 +222,7 @@ const QueueGuest = () => {
     }
   };
 
-  // 2. Fetch Queues & Restore Ticket from LocalStorage
+  // 3. Fetch Queues & Restore Ticket from LocalStorage
   useEffect(() => {
     if (!event?.id) return;
 
@@ -112,7 +234,7 @@ const QueueGuest = () => {
       fetchTicketById(savedTicketId);
     }
 
-    // Auto refresh setiap 3 detik (jaminan 100% selalu update otomatis)
+    // Auto-refresh setiap 3 detik (sinkronisasi otomatis berkala)
     const timer = setInterval(() => {
       fetchQueues(event.id);
       const currentTicketId = localStorage.getItem(`snaphub_ticket_${event.id}`);
@@ -121,9 +243,9 @@ const QueueGuest = () => {
       }
     }, 3000);
 
-    // Subscribe ke Supabase Realtime (update instan)
+    // Subscribe ke Supabase Realtime (update seketika)
     const channel = supabase
-      .channel(`queue_${event.id}`)
+      .channel(`guest_queue_${event.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'event_queues' },
@@ -176,26 +298,45 @@ const QueueGuest = () => {
       if (data) {
         setMyTicket(data);
 
-        // Cek jika status baru saja berubah menjadi called/serving
+        // Kunci alert unik: mendeteksi panggilan pertama dan pemanggilan ulang (recall)
+        const alertKey = `${data.status}_${data.called_count || 1}_${data.called_at || ''}`;
+
         if (
           (data.status === 'called' || data.status === 'serving') &&
-          previousStatusRef.current !== 'called' &&
-          previousStatusRef.current !== 'serving'
+          lastAlertKeyRef.current !== alertKey
         ) {
+          lastAlertKeyRef.current = alertKey;
+          setShowCallModal(true);
           playAlertSound();
           triggerHaptic();
-          toast.success('GILIRAN ANDA SEKARANG! Silakan menuju photobooth!', { duration: 6000, icon: '🎉' });
+          toast.success('Giliran Anda tiba! Silakan segera menuju photobooth.', { duration: 6000 });
         }
-        previousStatusRef.current = data.status;
       }
     } catch (err) {
       console.warn('Gagal membaca tiket:', err);
     }
   };
 
-  // 3. Handle Ambil Tiket
+  // 4. Looping alert sound & haptic while In-App Call Modal is open
+  useEffect(() => {
+    if (!showCallModal) return;
+
+    playAlertSound();
+    triggerHaptic();
+
+    const interval = setInterval(() => {
+      playAlertSound();
+      triggerHaptic();
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [showCallModal]);
+
+  // 5. Handle Ambil Tiket
   const handleTakeTicket = async (e) => {
     e.preventDefault();
+    unlockAudio(); // Pastikan audio terbuka oleh gestur tombol ini
+
     if (!name.trim()) {
       toast.error('Silakan isi nama panggilan Anda');
       return;
@@ -207,11 +348,10 @@ const QueueGuest = () => {
 
     setSubmitting(true);
     try {
-      // Format nomor telepon
       let cleanPhone = phone.replace(/[^0-9]/g, '');
       if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
 
-      // Coba lewat RPC take_queue_ticket (mengirim event_id dan token)
+      // Coba lewat RPC take_queue_ticket
       const { data, error } = await supabase.rpc('take_queue_ticket', {
         p_event_id: event?.id || null,
         p_name: name.trim(),
@@ -220,7 +360,6 @@ const QueueGuest = () => {
       });
 
       if (error) {
-        // Fallback manual insert jika fungsi RPC versi lama
         const targetEventId = event?.id;
         if (!targetEventId) {
           throw new Error(error.message || 'Event belum termuat atau link antrian tidak valid');
@@ -263,15 +402,26 @@ const QueueGuest = () => {
     }
   };
 
-  const handleLeaveQueue = () => {
-    if (window.confirm('Yakin ingin melepas tiket ini dan mengambil nomor baru?')) {
-      if (event?.id) {
-        localStorage.removeItem(`snaphub_ticket_${event.id}`);
-      }
-      setMyTicket(null);
-      setName('');
-      setPhone('');
+  // Konfirmasi ganti tiket via in-app modal (bukan window.confirm)
+  const confirmLeaveQueue = () => {
+    if (event?.id) {
+      localStorage.removeItem(`snaphub_ticket_${event.id}`);
     }
+    setMyTicket(null);
+    setName('');
+    setPhone('');
+    setShowLeaveModal(false);
+    setShowCallModal(false);
+    lastAlertKeyRef.current = null;
+    toast.success('Nomor antrian telah dilepas.');
+  };
+
+  // Tes Suara
+  const handleTestSound = () => {
+    unlockAudio();
+    playAlertSound();
+    triggerHaptic();
+    toast.success('Suara notifikasi aktif dan berfungsi normal.');
   };
 
   // Kalkulasi Status Antrian
@@ -282,14 +432,14 @@ const QueueGuest = () => {
   if (myTicket && myTicket.status === 'waiting') {
     queuePosition = waitingList.findIndex(q => q.id === myTicket.id) + 1;
   }
-  const estimatedWaitMinutes = queuePosition * 2; // asumsi 2 menit per sesi
+  const estimatedWaitMinutes = queuePosition * 2;
 
   const isMyTurn = myTicket && (myTicket.status === 'called' || myTicket.status === 'serving');
   const isNear = queuePosition > 0 && queuePosition <= 2;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0B0B0B]">
+      <div className="min-h-screen flex items-center justify-center bg-[#070708]">
         <div className="w-9 h-9 border-4 border-[#D90429] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -311,10 +461,20 @@ const QueueGuest = () => {
           </div>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-semibold text-emerald-400">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          Live
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleTestSound}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-zinc-300 transition-colors cursor-pointer"
+            title="Tes Suara Notifikasi"
+          >
+            <FiVolume2 size={13} className="text-[#E79EA7]" />
+            <span className="hidden sm:inline">Tes Suara</span>
+          </button>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-semibold text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </span>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -326,7 +486,6 @@ const QueueGuest = () => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-[#121214] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden"
           >
-            {/* Glow accent */}
             <div className="absolute top-0 right-0 w-36 h-36 bg-[#D90429]/15 blur-3xl pointer-events-none rounded-full" />
 
             <div className="text-center mb-6">
@@ -335,7 +494,7 @@ const QueueGuest = () => {
               </span>
               <h2 className="text-xl font-bold font-heading text-white">Ambil Nomor Antrian</h2>
               <p className="text-xs text-zinc-400 mt-1">
-                Dapatkan nomor antrian photobooth langsung dari HP Anda. Santai dan nikmati acara tanpa harus berdiri menunggu!
+                Dapatkan nomor antrian photobooth langsung dari smartphone Anda. Santai dan nikmati acara tanpa harus berdiri menunggu.
               </p>
             </div>
 
@@ -379,7 +538,7 @@ const QueueGuest = () => {
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#D90429] transition-colors"
                 />
                 <span className="text-[10px] text-zinc-400 block mt-1">
-                  Untuk menerima notifikasi saat giliran Anda sudah dekat.
+                  Untuk menerima notifikasi pengingat saat giliran Anda sudah dekat.
                 </span>
               </div>
 
@@ -400,7 +559,7 @@ const QueueGuest = () => {
             animate={{ opacity: 1, scale: 1 }}
             className={`border rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden transition-all duration-500 ${
               isMyTurn
-                ? 'bg-gradient-to-b from-emerald-950/60 to-[#121214] border-emerald-500 shadow-emerald-500/20 animate-pulse'
+                ? 'bg-gradient-to-b from-emerald-950/60 to-[#121214] border-emerald-500/80 shadow-emerald-500/20'
                 : isNear
                 ? 'bg-gradient-to-b from-amber-950/40 to-[#121214] border-amber-500/60'
                 : 'bg-[#121214] border-white/15'
@@ -410,7 +569,7 @@ const QueueGuest = () => {
             <div className="text-center mb-5">
               {isMyTurn ? (
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500 text-black font-extrabold text-xs uppercase tracking-wider mb-3 shadow-lg shadow-emerald-500/30">
-                  <FiBell className="animate-bounce" /> Giliran Anda Sekarang!
+                  <FiBell className="animate-bounce" /> Giliran Anda Sekarang
                 </div>
               ) : isNear ? (
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs uppercase tracking-wider mb-3">
@@ -458,7 +617,7 @@ const QueueGuest = () => {
 
               {myTicket.status === 'completed' && (
                 <div className="text-center py-2 text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5">
-                  <FiCheckCircle /> Sesi Foto Anda Telah Selesai!
+                  <FiCheckCircle /> Sesi Foto Anda Telah Selesai
                 </div>
               )}
             </div>
@@ -467,7 +626,7 @@ const QueueGuest = () => {
             <div className="text-center text-xs text-zinc-400 mb-6">
               {isMyTurn ? (
                 <p className="text-emerald-300 font-semibold text-sm">
-                  Silakan langsung menuju ke photobooth sekarang dan tunjukkan nomor ini ke kru kami!
+                  Silakan langsung menuju ke photobooth sekarang dan tunjukkan nomor ini ke kru kami.
                 </p>
               ) : isNear ? (
                 <p className="text-amber-200 font-medium">
@@ -475,7 +634,7 @@ const QueueGuest = () => {
                 </p>
               ) : (
                 <p>
-                  Halaman ini akan otomatis bergetar dan berganti saat giliran Anda tiba. Anda bebas menikmati hidangan atau bersosialisasi!
+                  Halaman ini akan berbunyi dan bergetar saat giliran Anda tiba. Pastikan volume HP aktif dan nikmati waktu Anda.
                 </p>
               )}
             </div>
@@ -483,20 +642,18 @@ const QueueGuest = () => {
             {/* Actions */}
             <div className="flex gap-2">
               <button
-                onClick={handleLeaveQueue}
-                className="flex-1 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-zinc-400 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+                onClick={() => setShowLeaveModal(true)}
+                className="flex-1 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-zinc-400 hover:text-white text-xs font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
-                Ganti Tiket
+                <FiRotateCcw size={13} /> Ganti Tiket
               </button>
               <button
-                onClick={() => {
-                  playAlertSound();
-                  toast.success('Suara pemanggil aktif!');
-                }}
-                className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                title="Tes Suara Alarm"
+                onClick={handleTestSound}
+                className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                title="Tes Suara Notifikasi"
               >
-                <FiVolume2 size={14} />
+                <FiVolume2 size={14} className="text-[#E79EA7]" />
+                <span>Tes Suara</span>
               </button>
             </div>
           </motion.div>
@@ -507,6 +664,106 @@ const QueueGuest = () => {
       <footer className="border-t border-white/10 p-4 text-center text-xs text-zinc-400 bg-black/30">
         Powered by <strong className="text-white">SnapHub.id</strong> — Instant Photobooth Experience
       </footer>
+
+      {/* ======================================================================
+          IN-APP POPUP MODAL: GILIRAN ANDA DIPANGGIL (Menggantikan Browser Popup)
+          ====================================================================== */}
+      <AnimatePresence>
+        {showCallModal && myTicket && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-[#121214] border-2 border-emerald-500 rounded-3xl max-w-sm w-full p-6 sm:p-8 text-center shadow-[0_0_60px_rgba(16,185,129,0.3)] relative overflow-hidden"
+            >
+              {/* Pulsing ambient circle */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-emerald-500/15 blur-3xl rounded-full pointer-events-none animate-pulse" />
+
+              <div className="inline-flex p-4 rounded-full bg-emerald-500/20 text-emerald-400 mb-4 ring-8 ring-emerald-500/10 animate-bounce">
+                <FiBell size={36} />
+              </div>
+
+              <span className="block text-xs uppercase tracking-widest text-emerald-400 font-bold mb-1">
+                Panggilan Antrian
+              </span>
+              <h2 className="text-2xl font-black font-heading text-white">
+                Giliran Anda Telah Tiba!
+              </h2>
+
+              <div className="my-5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                <p className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold mb-1">
+                  Nomor Antrian Anda
+                </p>
+                <p className="text-5xl sm:text-6xl font-extrabold font-mono text-white tracking-tight">
+                  {myTicket.queue_number}
+                </p>
+                <p className="text-sm font-semibold text-[#E79EA7] mt-1">
+                  {myTicket.customer_name}
+                </p>
+              </div>
+
+              <p className="text-xs text-zinc-300 leading-relaxed mb-6">
+                Silakan langsung menuju ke booth photobooth dan tunjukkan nomor antrian ini kepada kru SnapHub.
+              </p>
+
+              <button
+                onClick={() => setShowCallModal(false)}
+                className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm tracking-wide shadow-lg shadow-emerald-500/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <FiCheck size={18} />
+                Saya Menuju ke Booth
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================================
+          IN-APP POPUP MODAL: KONFIRMASI GANTI TIKET (Menggantikan window.confirm)
+          ====================================================================== */}
+      <AnimatePresence>
+        {showLeaveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#121214] border border-white/15 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative"
+            >
+              <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 text-amber-400 mb-3">
+                <FiAlertCircle size={28} />
+              </div>
+
+              <h3 className="text-lg font-bold font-heading text-white">
+                Ganti Nomor Antrian?
+              </h3>
+              <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+                Nomor antrian Anda saat ini (<strong className="text-white font-mono">{myTicket?.queue_number}</strong>) akan dilepas dari perangkat ini dan Anda dapat mengambil antrian baru.
+              </p>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowLeaveModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-zinc-300 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmLeaveQueue}
+                  className="flex-1 py-2.5 rounded-xl bg-[#D90429] hover:bg-[#b00320] text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <FiRotateCcw size={13} />
+                  Ya, Ganti
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
