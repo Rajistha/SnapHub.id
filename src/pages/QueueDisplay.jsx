@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiVolume2, FiMaximize2, FiMinimize2, FiUsers, FiClock } from 'react-icons/fi';
+import { FiVolume2, FiMaximize2, FiMinimize2, FiUsers, FiClock, FiNavigation } from 'react-icons/fi';
 
 let displayAudioCtx = null;
 
@@ -158,7 +158,7 @@ const QueueDisplay = () => {
 
       if (data) {
         setQueues(data);
-        const serving = data.find(q => q.status === 'called' || q.status === 'serving');
+        const serving = data.find(q => q.status === 'called' || q.status === 'heading' || q.status === 'serving');
         if (serving && serving.id !== previousServingRef.current) {
           playChime();
           previousServingRef.current = serving.id;
@@ -179,7 +179,7 @@ const QueueDisplay = () => {
     }
   };
 
-  const activeServing = queues.find(q => q.status === 'called' || q.status === 'serving');
+  const activeServing = queues.find(q => q.status === 'called' || q.status === 'heading' || q.status === 'serving');
   const upNextList = queues.filter(q => q.status === 'waiting').slice(0, 3);
   const totalWaiting = queues.filter(q => q.status === 'waiting').length;
 
@@ -233,10 +233,17 @@ const QueueDisplay = () => {
         {/* BIG NOW SERVING CARD (2 COLS) */}
         <div className="lg:col-span-2 bg-gradient-to-br from-[#121214] to-[#18181b] border-2 border-white/15 rounded-3xl p-8 sm:p-12 flex flex-col justify-between shadow-2xl relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#D90429]/20 border border-[#D90429]/40 text-[#E79EA7] font-bold text-xs uppercase tracking-widest">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D90429] animate-ping" />
-              Now Serving / Sedang Difoto
-            </span>
+            {activeServing?.status === 'heading' ? (
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold text-xs uppercase tracking-widest animate-pulse">
+                <FiNavigation size={13} />
+                Tamu Sedang Menuju ke Booth
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#D90429]/20 border border-[#D90429]/40 text-[#E79EA7] font-bold text-xs uppercase tracking-widest">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#D90429] animate-ping" />
+                Now Serving / Sedang Difoto
+              </span>
+            )}
 
             <span className="text-xs font-mono text-zinc-400">
               Total Antre: <strong className="text-white text-sm">{totalWaiting}</strong>

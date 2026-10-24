@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiClock, FiUsers, FiCheckCircle, FiAlertCircle, 
   FiBell, FiVolume2, FiShare2, FiRefreshCw, FiChevronRight,
-  FiCheck, FiX, FiRotateCcw, FiVolumeX
+  FiCheck, FiX, FiRotateCcw, FiVolumeX, FiNavigation
 } from 'react-icons/fi';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -424,17 +424,43 @@ const QueueGuest = () => {
     toast.success('Suara notifikasi aktif dan berfungsi normal.');
   };
 
+  // Konfirmasi menuju ke booth (langsung tampil di layar kru)
+  const handleConfirmHeading = async () => {
+    setShowCallModal(false);
+    if (!myTicket?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('event_queues')
+        .update({ status: 'heading' })
+        .eq('id', myTicket.id)
+        .select()
+        .single();
+
+      if (!error && data) {
+        setMyTicket(data);
+      }
+      toast.success('Konfirmasi terkirim! Kru telah mengetahui Anda sedang menuju ke booth.');
+    } catch (err) {
+      console.warn('Gagal update status heading:', err);
+    }
+  };
+
   // Kalkulasi Status Antrian
   const waitingList = allQueues.filter(q => q.status === 'waiting');
-  const activeServing = allQueues.find(q => q.status === 'called' || q.status === 'serving');
+  const activeServing = allQueues.find(q => q.status === 'called' || q.status === 'heading' || q.status === 'serving');
 
   let queuePosition = 0;
   if (myTicket && myTicket.status === 'waiting') {
     queuePosition = waitingList.findIndex(q => q.id === myTicket.id) + 1;
   }
-  const estimatedWaitMinutes = queuePosition * 2;
+  const aheadCount = Math.max(0, queuePosition - 1);
+  const minWaitMinutes = aheadCount === 0 ? 2 : Math.max(3, aheadCount * 3 + 1);
+  const maxWaitMinutes = aheadCount === 0 ? 4 : Math.max(5, aheadCount * 5);
+  const estimatedWaitText = aheadCount === 0
+    ? '~2 - 4 menit (Giliran Berikutnya)'
+    : `~${minWaitMinutes} - ${maxWaitMinutes} menit`;
 
-  const isMyTurn = myTicket && (myTicket.status === 'called' || myTicket.status === 'serving');
+  const isMyTurn = myTicket && (myTicket.status === 'called' || myTicket.status === 'heading' || myTicket.status === 'serving');
   const isNear = queuePosition > 0 && queuePosition <= 2;
 
   if (loading) {
@@ -568,9 +594,15 @@ const QueueGuest = () => {
             {/* Status Banner */}
             <div className="text-center mb-5">
               {isMyTurn ? (
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500 text-black font-extrabold text-xs uppercase tracking-wider mb-3 shadow-lg shadow-emerald-500/30">
-                  <FiBell className="animate-bounce" /> Giliran Anda Sekarang
-                </div>
+                myTicket.status === 'heading' ? (
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500 text-black font-extrabold text-xs uppercase tracking-wider mb-3 shadow-lg shadow-cyan-500/30">
+                    <FiNavigation /> Sedang Menuju ke Booth
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500 text-black font-extrabold text-xs uppercase tracking-wider mb-3 shadow-lg shadow-emerald-500/30">
+                    <FiBell className="animate-bounce" /> Giliran Anda Sekarang
+                  </div>
+                )
               ) : isNear ? (
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-xs uppercase tracking-wider mb-3">
                   <FiAlertCircle /> Segera Merapat ke Booth
@@ -609,7 +641,7 @@ const QueueGuest = () => {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-zinc-400">Estimasi Menunggu</span>
                     <span className="font-semibold text-zinc-200">
-                      ~{estimatedWaitMinutes} menit
+                      {estimatedWaitText}
                     </span>
                   </div>
                 </>
@@ -625,9 +657,15 @@ const QueueGuest = () => {
             {/* Instruction Callout */}
             <div className="text-center text-xs text-zinc-400 mb-6">
               {isMyTurn ? (
-                <p className="text-emerald-300 font-semibold text-sm">
-                  Silakan langsung menuju ke photobooth sekarang dan tunjukkan nomor ini ke kru kami.
-                </p>
+                myTicket.status === 'heading' ? (
+                  <p className="text-cyan-300 font-semibold text-sm">
+                    Konfirmasi terkirim. Kru telah mengetahui Anda sedang menuju booth. Silakan langsung temui kru kami di lokasi.
+                  </p>
+                ) : (
+                  <p className="text-emerald-300 font-semibold text-sm">
+                    Silakan langsung menuju ke photobooth sekarang dan tunjukkan nomor ini ke kru kami.
+                  </p>
+                )
               ) : isNear ? (
                 <p className="text-amber-200 font-medium">
                   Tinggal {queuePosition - 1} antrian lagi di depan Anda. Silakan mulai mendekat ke area photobooth agar tidak terlewat.
@@ -709,7 +747,7 @@ const QueueGuest = () => {
               </p>
 
               <button
-                onClick={() => setShowCallModal(false)}
+                onClick={handleConfirmHeading}
                 className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-sm tracking-wide shadow-lg shadow-emerald-500/25 transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <FiCheck size={18} />

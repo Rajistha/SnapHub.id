@@ -5,7 +5,7 @@ import {
   FiPhone, FiCheck, FiX, FiRefreshCw, FiExternalLink, 
   FiVolume2, FiCopy, FiShare2, FiTrash2, FiPlay, 
   FiSkipForward, FiCheckCircle, FiSearch, FiChevronRight,
-  FiCalendar, FiTv, FiSmartphone
+  FiCalendar, FiTv, FiSmartphone, FiNavigation
 } from 'react-icons/fi';
 import { SiWhatsapp } from 'react-icons/si';
 import toast, { Toaster } from 'react-hot-toast';
@@ -211,7 +211,7 @@ const QueueAdmin = () => {
     setActionLoading(true);
     try {
       // 1. Selesaikan item yang sedang aktif dipanggil bila ada
-      const currentServing = queues.find(q => q.status === 'called' || q.status === 'serving');
+      const currentServing = queues.find(q => q.status === 'called' || q.status === 'heading' || q.status === 'serving');
       if (currentServing) {
         await handleComplete(currentServing, false);
       }
@@ -352,7 +352,7 @@ Tim SnapHub Photobooth`;
     ? `https://queue.snaphub.my.id/${slugify(selectedEvent.name)}-${guestToken}/display`
     : '';
 
-  const activeServing = queues.find(q => q.status === 'called' || q.status === 'serving');
+  const activeServing = queues.find(q => q.status === 'called' || q.status === 'heading' || q.status === 'serving');
   const waitingList = queues.filter(q => q.status === 'waiting');
   const completedList = queues.filter(q => q.status === 'completed');
 
@@ -663,10 +663,17 @@ Tim SnapHub Photobooth`;
                 <div className="space-y-4">
                   {/* Card Header */}
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D90429]/15 text-[#D90429] text-[11px] font-bold uppercase tracking-wider">
-                      <span className="w-2 h-2 rounded-full bg-[#D90429] animate-ping" />
-                      Sedang Berfoto Saat Ini
-                    </span>
+                    {activeServing?.status === 'heading' ? (
+                      <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-400 text-[11px] font-bold uppercase tracking-wider animate-pulse">
+                        <FiNavigation size={12} />
+                        Tamu Sedang Menuju ke Booth
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D90429]/15 text-[#D90429] text-[11px] font-bold uppercase tracking-wider">
+                        <span className="w-2 h-2 rounded-full bg-[#D90429] animate-ping" />
+                        Sedang Berfoto Saat Ini
+                      </span>
+                    )}
 
                     <label className="flex items-center gap-2 text-xs text-[var(--admin-text-muted)] cursor-pointer select-none">
                       <input
@@ -687,9 +694,15 @@ Tim SnapHub Photobooth`;
                           <span className="text-5xl sm:text-6xl font-extrabold font-mono text-[var(--admin-text-main)] tracking-tight">
                             {activeServing.queue_number}
                           </span>
-                          <span className="text-xs font-bold text-[#D90429] uppercase px-2 py-0.5 rounded-md bg-[#D90429]/10">
-                            Giliran
-                          </span>
+                          {activeServing.status === 'heading' ? (
+                            <span className="text-xs font-bold text-cyan-400 uppercase px-2.5 py-1 rounded-md bg-cyan-500/15 border border-cyan-500/35 flex items-center gap-1.5 shadow-sm">
+                              <FiNavigation size={11} /> OTW Booth
+                            </span>
+                          ) : (
+                            <span className="text-xs font-bold text-[#D90429] uppercase px-2 py-0.5 rounded-md bg-[#D90429]/10">
+                              Giliran
+                            </span>
+                          )}
                         </div>
 
                         <h4 className="text-lg sm:text-xl font-bold text-[var(--admin-text-main)] font-heading mt-2">
@@ -893,7 +906,7 @@ Tim SnapHub Photobooth`;
                   <tbody className="divide-y divide-[var(--admin-border-subtle)]">
                     {queues
                       .filter((q) => {
-                        if (activeTab === 'waiting') return q.status === 'waiting' || q.status === 'called';
+                        if (activeTab === 'waiting') return q.status === 'waiting' || q.status === 'called' || q.status === 'heading' || q.status === 'serving';
                         if (activeTab === 'completed') return q.status === 'completed';
                         return true;
                       })
@@ -918,8 +931,10 @@ Tim SnapHub Photobooth`;
                             {item.customer_phone || '-'}
                           </td>
                           <td className="py-3 px-3">
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                              item.status === 'called' || item.status === 'serving'
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              item.status === 'heading'
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse'
+                                : item.status === 'called' || item.status === 'serving'
                                 ? 'bg-[#D90429]/20 text-[#D90429] border border-[#D90429]/30'
                                 : item.status === 'waiting'
                                 ? 'bg-amber-500/15 text-amber-400'
@@ -927,7 +942,8 @@ Tim SnapHub Photobooth`;
                                 ? 'bg-emerald-500/15 text-emerald-400'
                                 : 'bg-zinc-500/20 text-zinc-400'
                             }`}>
-                              {item.status}
+                              {item.status === 'heading' && <FiNavigation size={10} />}
+                              {item.status === 'heading' ? 'Menuju Booth' : item.status}
                             </span>
                           </td>
                           <td className="py-3 px-3 text-[var(--admin-text-muted)]">
