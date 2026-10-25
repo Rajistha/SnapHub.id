@@ -62,16 +62,8 @@ begin
   select count(*) into v_done from public.event_queues
   where event_id = p_event_id and status = 'completed';
 
-  select least(greatest(avg(extract(epoch from (s.completed_at - s.called_at))), 60), 1800)
-  into v_avg
-  from (
-    select completed_at, called_at from public.event_queues
-    where event_id = p_event_id and status = 'completed'
-      and completed_at is not null and called_at is not null and completed_at > called_at
-    order by completed_at desc
-    limit 10
-  ) s
-  having count(*) >= 2;
+  -- Estimasi per sesi dipatok 5 menit (300 detik) agar ringan & tidak melenceng.
+  v_avg := 300;
 
   if p_ticket_id is not null then
     select jsonb_build_object(
@@ -187,7 +179,11 @@ begin
   insert into public.queue_entries (gate, event_id)
   values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 16), v_entry.event_id);
 
-  return jsonb_build_object('session', v_entry.session);
+  -- Kembalikan sesi sekaligus data antrian awal agar HP tamu tidak perlu request 2 kali (muat instan)
+  return jsonb_build_object(
+    'session', v_entry.session,
+    'state', public.queue_state_for(v_entry.event_id, null)
+  );
 end $$;
 
 grant execute on function public.queue_claim_gate(text) to anon, authenticated;

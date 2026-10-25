@@ -5,11 +5,13 @@ import toast, { Toaster } from 'react-hot-toast';
 import { FiBell, FiCheck, FiVolume2, FiRotateCcw, FiNavigation, FiCamera, FiUser, FiArrowRight } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
 import usePolling from '../lib/usePolling';
-import { playChime, unlockAudio, vibrate } from '../lib/chime';
+import { playChime, speak, spokenNumber, unlockAudio, vibrate } from '../lib/chime';
 import { ACTIVE_STATUSES, estimateMinutes, formatEstimate, statusMeta } from '../lib/queueStatus';
 import { tokenFromSlug } from '../lib/appUrls';
 
 const storageKey = (gate) => `snaphub_entry_${gate}`;
+const stateStorageKey = (gate) => `snaphub_state_${gate}`;
+
 const readSession = (gate) => {
   try {
     return localStorage.getItem(storageKey(gate));
@@ -26,6 +28,32 @@ const writeSession = (gate, session) => {
   }
 };
 
+const readCachedState = (gate) => {
+  try {
+    if (!gate) return null;
+    const raw = sessionStorage.getItem(stateStorageKey(gate)) || localStorage.getItem(stateStorageKey(gate));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedState = (gate, data) => {
+  try {
+    if (!gate) return;
+    if (data) {
+      const serialized = JSON.stringify(data);
+      sessionStorage.setItem(stateStorageKey(gate), serialized);
+      localStorage.setItem(stateStorageKey(gate), serialized);
+    } else {
+      sessionStorage.removeItem(stateStorageKey(gate));
+      localStorage.removeItem(stateStorageKey(gate));
+    }
+  } catch {
+    /* penyimpanan diblokir */
+  }
+};
+
 // Link QR hanya boleh diklaim sekali. Janji (promise) dipakai bersama agar efek React yang
 // berjalan dua kali (mode dev) tidak mengklaim dua kali dan menganggap link sudah terpakai.
 const claims = new Map();
@@ -35,7 +63,7 @@ const claimGate = (gate) => {
       gate,
       supabase.rpc('queue_claim_gate', { p_gate: gate }).then(({ data, error }) => {
         if (error) claims.delete(gate); // gangguan koneksi: boleh dicoba lagi
-        return { session: data?.session || null, error };
+        return { session: data?.session || null, state: data?.state || null, error };
       })
     );
   }
@@ -61,10 +89,10 @@ const QueueGuest = () => {
   const { slug } = useParams();
   const gate = tokenFromSlug(slug);
 
-  const [state, setState] = useState(null); // { event, board, completed_count, ticket }
-  const [status, setStatus] = useState('loading'); // loading | ready | used | error
-  const [usedReason, setUsedReason] = useState('used'); // used | left
   const [session, setSession] = useState(() => readSession(gate));
+  const [state, setState] = useState(() => readCachedState(gate));
+  const [status, setStatus] = useState(() => (readCachedState(gate) ? 'ready' : 'loading'));
+  const [usedReason, setUsedReason] = useState('used'); // used | left
   const [name, setName] = useState('');
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -72,7 +100,42 @@ const QueueGuest = () => {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const lastAlertRef = useRef(null);
+  const inFlightRef = useRef(false);
   const releaseTicketRef = useRef();
+
+  // Konsumsi request awal dari <head> index.html yang berjalan paralel dengan unduhan JS/CSS
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const preload = window.__queuePreload;
+    if (!preload || preload.gate !== gate) return undefined;
+    window.__queuePreload = null;
+
+    let alive = true;
+    preload.promise
+      .then((data) => {
+        if (!alive || !data) return;
+        if (preload.session) {
+          setState(data);
+          writeCachedState(gate, data);
+          setStatus('ready');
+        } else if (data.session) {
+          writeSession(gate, data.session);
+          setSession(data.session);
+          if (data.state) {
+            setState(data.state);
+            writeCachedState(gate, data.state);
+            setStatus('ready');
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Preload queue error:', err);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [gate]);
 
   // Belum punya sesi: klaim link QR ini (hanya berhasil untuk tamu pertama yang membukanya).
   useEffect(() => {
@@ -82,7 +145,7 @@ const QueueGuest = () => {
       return undefined;
     }
     let alive = true;
-    claimGate(gate).then(({ session: claimed, error }) => {
+    claimGate(gate).then(({ session: claimed, state: initialState, error }) => {
       if (!alive) return;
       if (error) {
         setStatus('error');
@@ -94,6 +157,11 @@ const QueueGuest = () => {
       }
       writeSession(gate, claimed);
       setSession(claimed);
+      if (initialState) {
+        setState(initialState);
+        writeCachedState(gate, initialState);
+        setStatus('ready');
+      }
     });
     return () => {
       alive = false;
@@ -101,16 +169,22 @@ const QueueGuest = () => {
   }, [session, gate]);
 
   const refresh = useCallback(async () => {
-    if (!session) return;
-    const { data, error } = await supabase.rpc('get_entry_state', { p_session: session });
-    if (error) return; // koneksi sesaat putus: pertahankan tampilan terakhir
-    if (!data) {
-      setStatus('used');
-      return;
+    if (!session || inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      const { data, error } = await supabase.rpc('get_entry_state', { p_session: session });
+      if (error) return; // koneksi sesaat putus: pertahankan tampilan terakhir
+      if (!data) {
+        setStatus('used');
+        return;
+      }
+      setState(data);
+      writeCachedState(gate, data);
+      setStatus('ready');
+    } finally {
+      inFlightRef.current = false;
     }
-    setState(data);
-    setStatus('ready');
-  }, [session]);
+  }, [session, gate]);
 
   useEffect(() => {
     refresh();
@@ -143,13 +217,14 @@ const QueueGuest = () => {
   useEffect(() => {
     if (!callOpen) return undefined;
     const ring = () => {
-      playChime(0.9);
+      playChime(1);
       vibrate();
+      speak(`Nomor antrian ${spokenNumber(ticket?.queue_number)}, silakan menuju photobooth.`);
     };
     ring();
     const id = setInterval(ring, 4000);
     return () => clearInterval(id);
-  }, [callOpen]);
+  }, [callOpen, ticket?.queue_number]);
 
   // Jaga layar tetap menyala selama menunggu agar bunyi & getar tidak terlewat.
   const liveTicket = !!ticket && !FINISHED.includes(ticket.status);
@@ -217,14 +292,22 @@ const QueueGuest = () => {
       toast.error(error?.message?.includes('Terlalu banyak') ? 'Sedang ramai, coba lagi sebentar.' : error?.message?.includes('Sesi tidak valid') ? 'Link sudah tidak berlaku. Pindai QR lagi.' : 'Gagal mengambil nomor. Coba lagi.');
       return;
     }
-    setState((prev) => ({ ...(prev || {}), ticket: data }));
+    setState((prev) => {
+      const next = { ...(prev || {}), ticket: data };
+      writeCachedState(gate, next);
+      return next;
+    });
     toast.success(data.existing ? `Anda sudah punya antrian ${data.queue_number}.` : 'Nomor antrian berhasil diambil');
   };
 
   const confirmHeading = async () => {
     setCallOpen(false);
     if (!ticket) return;
-    setState((prev) => ({ ...prev, ticket: { ...prev.ticket, status: 'heading' } }));
+    setState((prev) => {
+      const next = { ...prev, ticket: { ...prev.ticket, status: 'heading' } };
+      writeCachedState(gate, next);
+      return next;
+    });
     const { error } = await supabase.rpc('queue_confirm_heading', { p_ticket_id: ticket.id });
     if (error) toast.error('Konfirmasi belum terkirim. Temui kru di booth.');
     else toast.success('Kru sudah tahu Anda menuju booth.');
@@ -236,6 +319,7 @@ const QueueGuest = () => {
       await supabase.rpc('queue_leave', { p_ticket_id: ticket.id });
     }
     writeSession(gate, null);
+    writeCachedState(gate, null);
     setSession(null);
     setState(null);
     setName('');
@@ -248,11 +332,17 @@ const QueueGuest = () => {
   };
   releaseTicketRef.current = releaseTicket;
 
-  const testSound = () => {
-    unlockAudio();
-    playChime(0.9);
-    vibrate();
-    toast.success('Suara & getar aktif');
+  const testSound = async () => {
+    try {
+      await unlockAudio();
+      await playChime(1);
+      vibrate();
+      speak('Tes suara berhasil, audio aktif');
+      toast.success('Suara & getar aktif! (Pastikan HP tidak dalam mode hening)');
+    } catch (err) {
+      console.warn('testSound error:', err);
+      toast.error('Gagal memutar audio');
+    }
   };
 
   if (status === 'loading') {
@@ -283,8 +373,7 @@ const QueueGuest = () => {
 
   const active = board.find((q) => ACTIVE_STATUSES.includes(q.status));
 
-  // Estimasi: tamu di depan (+ yang sedang dilayani) × rata-rata durasi layanan.
-  const avg = state?.avg_service_seconds;
+  // Estimasi: 5 menit per sesi (300 detik) sesuai alur photobooth.
   const aheadForNew = waiting.length + (active ? 1 : 0);
   const aheadForMe = ahead + (active ? 1 : 0);
 
@@ -323,7 +412,7 @@ const QueueGuest = () => {
           <dl className="grid grid-cols-3 gap-2.5 lg:gap-4 w-full max-w-sm lg:max-w-md">
             <Stat label="Giliran" value={active ? active.queue_number : '–'} />
             <Stat label="Menunggu" value={`${waiting.length}`} sub="orang" />
-            <Stat label="Estimasi" value={aheadForNew === 0 ? 'Langsung' : formatEstimate(estimateMinutes(aheadForNew, avg)).replace('± ', '')} highlight />
+            <Stat label="Estimasi" value={aheadForNew === 0 ? 'Langsung' : formatEstimate(estimateMinutes(aheadForNew)).replace('± ', '')} highlight />
           </dl>
         ) : (
           <motion.div
@@ -390,7 +479,7 @@ const QueueGuest = () => {
               {ticket.status === 'waiting' && (
                 <>
                   <Stat label="Di depan Anda" value={`${ahead}`} sub="orang" />
-                  <Stat label="Estimasi" value={formatEstimate(estimateMinutes(aheadForMe, avg)).replace('± ', '')} highlight />
+                  <Stat label="Estimasi" value={aheadForMe === 0 ? 'Langsung' : formatEstimate(estimateMinutes(aheadForMe)).replace('± ', '')} highlight />
                 </>
               )}
             </dl>

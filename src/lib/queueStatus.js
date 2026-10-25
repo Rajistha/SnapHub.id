@@ -15,16 +15,17 @@ export const STATUS_META = {
 
 export const statusMeta = (status) => STATUS_META[status] || { label: status, tone: 'muted' };
 
-// Estimasi tunggu: jumlah tamu di depan × rata-rata durasi layanan (default 5 menit bila belum ada data).
+// Estimasi tunggu: 5 menit per sesi foto sesuai durasi nyata photobooth.
 export const DEFAULT_SERVICE_SECONDS = 300;
 
-export const estimateMinutes = (peopleAhead, avgSeconds) => {
-  const per = Number(avgSeconds) > 0 ? Number(avgSeconds) : DEFAULT_SERVICE_SECONDS;
-  return Math.max(0, Math.ceil((peopleAhead * per) / 60));
+export const estimateMinutes = (peopleAhead) => {
+  const count = Math.max(0, Number(peopleAhead) || 0);
+  return count * 5;
 };
 
 export const formatEstimate = (minutes) => {
-  if (minutes < 60) return `± ${Math.max(1, minutes)} menit`;
+  if (!minutes || minutes <= 0) return 'Langsung';
+  if (minutes < 60) return `± ${minutes} menit`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m ? `± ${h} jam ${m} menit` : `± ${h} jam`;

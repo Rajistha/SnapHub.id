@@ -47,6 +47,14 @@ const isQueueSubdomain = typeof window !== 'undefined' && (
   window.location.hostname.startsWith('queue.')
 );
 
+// Preload chunk tiket antrian segera jika diakses dari subdomain queue atau path /queue
+if (
+  typeof window !== 'undefined' &&
+  (isQueueSubdomain || window.location.pathname.startsWith('/queue'))
+) {
+  import('./pages/QueueGuest');
+}
+
 // <Navigate> hanya untuk rute internal; pindah ke domain lain harus lewat location.
 function ExternalRedirect({ to }) {
   useEffect(() => {

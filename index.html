@@ -71,6 +71,43 @@
     })();
   </script>
 
+  <!-- Halaman antrian tamu: klaim atau ambil data antrian segera, paralel dengan unduhan JavaScript & font -->
+  <script>
+    (function () {
+      try {
+        var isQHost = location.hostname === 'queue.snaphub.my.id' || location.hostname.startsWith('queue.');
+        var m = isQHost
+          ? location.pathname.match(/^\/([^/]+)/)
+          : location.pathname.match(/^\/queue\/([^/]+)/);
+        if (!m || !m[1]) return;
+        var slug = m[1];
+        if (slug === 'display' || slug === 'qr' || slug.endsWith('/display') || slug.endsWith('/qr')) return;
+        var gate = slug.split('-').pop();
+        if (!gate) return;
+
+        var savedSession = null;
+        try { savedSession = localStorage.getItem('snaphub_entry_' + gate); } catch (e) {}
+
+        var url, body;
+        if (savedSession) {
+          url = '%VITE_SUPABASE_URL%/rest/v1/rpc/get_entry_state';
+          body = JSON.stringify({ p_session: savedSession });
+        } else {
+          url = '%VITE_SUPABASE_URL%/rest/v1/rpc/queue_claim_gate';
+          body = JSON.stringify({ p_gate: gate });
+        }
+
+        var p = fetch(url, {
+          method: 'POST',
+          headers: { apikey: '%VITE_SUPABASE_ANON_KEY%', 'Content-Type': 'application/json' },
+          body: body
+        }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); });
+        p.catch(function () {});
+        window.__queuePreload = { gate: gate, session: savedSession, promise: p };
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Theme color -->
   <meta name="theme-color" content="#0B0B0B" />
 
