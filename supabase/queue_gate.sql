@@ -192,7 +192,10 @@ grant execute on function public.queue_claim_gate(text) to anon, authenticated;
 drop function if exists public.take_queue_ticket(text, text, text);
 drop function if exists public.take_queue_ticket(text, text);
 
-create or replace function public.take_queue_ticket(p_session uuid, p_name text)
+-- Nama tamu bersifat opsional (default kosong ''), tiket tetap terbit secara 1-tap instan
+alter table public.event_queues alter column customer_name set default '';
+
+create or replace function public.take_queue_ticket(p_session uuid, p_name text default '')
 returns jsonb
 language plpgsql
 security definer
@@ -215,13 +218,10 @@ begin
     if found then
       return jsonb_build_object('existing', true, 'id', v_row.id, 'queue_number', v_row.queue_number,
         'seq_number', v_row.seq_number, 'status', v_row.status, 'customer_name', v_row.customer_name,
-        'called_at', v_row.called_at, 'called_count', v_row.called_count);
+        'called_at', v_row.called_at, 'called_count', v_row.called_count,
+        'state', public.queue_state_for(v_entry.event_id, v_row.id));
     end if;
   end if;
-
-  if length(v_name) = 0 then raise exception 'Nama wajib diisi'; end if;
-
-  perform 1 from public.financial_events where id = v_entry.event_id for update;
 
   if (select count(*) from public.event_queues
       where event_id = v_entry.event_id and created_at > now() - interval '1 minute') >= 60 then
@@ -238,7 +238,8 @@ begin
 
   return jsonb_build_object('existing', false, 'id', v_row.id, 'queue_number', v_row.queue_number,
     'seq_number', v_row.seq_number, 'status', v_row.status, 'customer_name', v_row.customer_name,
-    'called_at', v_row.called_at, 'called_count', v_row.called_count);
+    'called_at', v_row.called_at, 'called_count', v_row.called_count,
+    'state', public.queue_state_for(v_entry.event_id, v_row.id));
 end $$;
 
 grant execute on function public.take_queue_ticket(uuid, text) to anon, authenticated;

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import toast, { Toaster } from 'react-hot-toast';
 import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, SHARING_SOURCE, SHARING_DESCRIPTION, sessionPrice, eventTotal, voucherCount, eventSharing, isPercentMode } from '../lib/photoSession';
 import SwipeableSessionRow from '../components/SwipeableSessionRow';
-import { FiPlus, FiMinus, FiSearch, FiTrash2, FiEdit2, FiSave, FiX, FiArrowLeft, FiSun, FiMoon, FiLink, FiCopy, FiChevronDown, FiChevronRight, FiEye, FiEyeOff, FiTag, FiSettings } from 'react-icons/fi';
+import { FiPlus, FiMinus, FiSearch, FiTrash2, FiEdit2, FiSave, FiX, FiArrowLeft, FiSun, FiMoon, FiLink, FiCopy, FiChevronDown, FiChevronRight, FiEye, FiEyeOff, FiTag, FiSettings, FiLoader } from 'react-icons/fi';
 
 const formatRp = (n) => `Rp ${new Intl.NumberFormat('id-ID').format(n || 0)}`;
 
@@ -91,6 +91,8 @@ const SesiFoto = () => {
   const writeChain = useRef(Promise.resolve());
   const eventsRef = useRef([]);
   const pendingWrites = useRef(0);
+  const isAddingRef = useRef(false);
+  const [isAddingSession, setIsAddingSession] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, type: '', eventId: null, sessionId: null });
 
   const [noVoucher, setNoVoucher] = useState(false);
@@ -396,11 +398,19 @@ const SesiFoto = () => {
   // ulang pemasukan dan sharing profit, lalu hasilnya dipakai sebagai data akhir.
   const mutateSessions = (eventId, updater, fn, args) => {
     const event = eventsRef.current.find((ev) => ev.id === eventId);
-    if (!event) return;
-    const sessions = updater(event.sessions || []);
+    if (!event) return Promise.resolve();
+    const rawSessions = updater(event.sessions || []);
+    // Cegah duplikasi sesi di state lokal
+    const seen = new Set();
+    const sessions = rawSessions.filter((s) => {
+      if (!s || !s.id) return false;
+      if (seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
     const income = eventTotal({ ...event, sessions }) + Number(event.income_adjustment || 0);
     eventsRef.current = eventsRef.current.map((ev) => (ev.id === eventId ? { ...ev, sessions, income } : ev));
-    setEvents(eventsRef.current);
+    setEvents([...eventsRef.current]);
 
     pendingWrites.current += 1;
     writeChain.current = writeChain.current.then(async () => {
@@ -409,10 +419,18 @@ const SesiFoto = () => {
         if (error) throw error;
         // Pakai data server hanya bila ini perubahan terakhir yang menunggu
         if (data && pendingWrites.current === 1) {
+          const rawServer = Array.isArray(data.sessions) ? data.sessions : [];
+          const sSeen = new Set();
+          const cleanSessions = rawServer.filter((s) => {
+            if (!s || !s.id) return false;
+            if (sSeen.has(s.id)) return false;
+            sSeen.add(s.id);
+            return true;
+          });
           eventsRef.current = eventsRef.current.map((ev) =>
-            ev.id === eventId ? { ...ev, sessions: data.sessions || [], income: data.income } : ev
+            ev.id === eventId ? { ...ev, sessions: cleanSessions, income: data.income } : ev
           );
-          setEvents(eventsRef.current);
+          setEvents([...eventsRef.current]);
         }
       } catch (error) {
         console.error(error);
@@ -422,24 +440,44 @@ const SesiFoto = () => {
         pendingWrites.current -= 1;
       }
     });
+    return writeChain.current;
   };
 
-  const handleAddSession = () => {
-    if (!selectedEvent) return;
+  const handleAddSession = async () => {
+    if (!selectedEvent || isAddingRef.current) return;
+    isAddingRef.current = true;
+    setIsAddingSession(true);
+
     const newSession = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       no_voucher: isPercentMode(selectedEvent) ? false : noVoucher,
       prints: Number(prints) || 0,
       created_at: new Date().toISOString(),
     };
-    mutateSessions(selectedEvent.id, (sessions) => [...sessions, newSession], 'admin_add_session', {
-      p_id: newSession.id,
-      p_no_voucher: newSession.no_voucher,
-      p_prints: newSession.prints,
-    });
     setNoVoucher(false);
     setPrints(0);
-    toast.success('Sesi dicatat');
+
+    try {
+      await mutateSessions(
+        selectedEvent.id,
+        (sessions) => (sessions.some((s) => s.id === newSession.id) ? sessions : [...sessions, newSession]),
+        'admin_add_session',
+        {
+          p_id: newSession.id,
+          p_no_voucher: newSession.no_voucher,
+          p_prints: newSession.prints,
+        }
+      );
+      toast.success('Sesi dicatat');
+    } catch {
+      // Ditangani di mutateSessions
+    } finally {
+      // Cooldown 500ms agar double tap / pantulan klik tidak menembus
+      setTimeout(() => {
+        isAddingRef.current = false;
+        setIsAddingSession(false);
+      }, 500);
+    }
   };
 
   const handleDeleteSession = (sessionId) => {
@@ -1030,8 +1068,23 @@ const SesiFoto = () => {
                           {formatRp((isPercentMode(selectedEvent) ? eventPricing.sessionPrice : noVoucher ? eventPricing.noVoucherPrice : eventPricing.voucherPrice) + (Number(prints) || 0) * eventPricing.printPrice)}
                         </p>
                       </div>
-                      <button onClick={handleAddSession} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-1.5">
-                        <FiPlus size={14} /> Tambah Sesi
+                      <button
+                        type="button"
+                        onClick={handleAddSession}
+                        disabled={isAddingSession}
+                        className="btn-primary px-5 py-2.5 text-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        {isAddingSession ? (
+                          <>
+                            <FiLoader className="animate-spin" size={14} />
+                            <span>Menyimpan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FiPlus size={14} />
+                            <span>Tambah Sesi</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>

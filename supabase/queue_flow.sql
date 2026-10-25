@@ -105,6 +105,16 @@ begin
 
   perform 1 from public.financial_events where id = p_event_id for update;
 
+  -- Proteksi klik ganda (double-click/double-tap): jika tamu aktif baru saja dipanggil kurang dari 2 detik lalu,
+  -- kembalikan tamu aktif tersebut dan jangan tutup/pindahkan antrian secara instan.
+  select * into v_cur from public.event_queues
+  where event_id = p_event_id and status in ('called','heading','serving')
+  order by called_at desc nulls last limit 1;
+
+  if found and v_cur.called_at is not null and v_cur.called_at > now() - interval '2 seconds' then
+    return to_jsonb(v_cur);
+  end if;
+
   -- Pastikan ada tamu yang menunggu SEBELUM menyentuh tamu aktif. Bila tidak ada, jangan ubah apa pun:
   -- tamu yang sedang dilayani tidak boleh diselesaikan/dilewati diam-diam oleh panggilan yang sia-sia.
   select * into v_next from public.event_queues
@@ -192,13 +202,12 @@ end $$;
 revoke execute on function public.admin_queue_complete(uuid, boolean) from public, anon;
 grant execute on function public.admin_queue_complete(uuid, boolean) to authenticated;
 
--- ── 5. Nomor WhatsApp tamu tidak lagi wajib ─────────────────────────────────
--- Tamu cukup mengisi nama. customer_phone disimpan sebagai '' bila kosong.
--- Pencegahan tiket ganda berdasarkan nomor hanya berlaku bila nomor diisi
--- (tiket tetap terikat ke perangkat tamu lewat penyimpanan di browser).
+-- ── 5. Nomor WhatsApp dan Nama tamu tidak wajib (1-Tap Instan) ────────────
+-- Tamu bisa langsung mengambil antrian. customer_name dan customer_phone disimpan '' bila kosong.
 alter table public.event_queues alter column customer_phone set default '';
+alter table public.event_queues alter column customer_name set default '';
 
-create or replace function public.take_queue_ticket(p_token text, p_name text, p_phone text default '')
+create or replace function public.take_queue_ticket(p_token text, p_name text default '', p_phone text default '')
 returns jsonb
 language plpgsql
 security definer
@@ -213,9 +222,6 @@ declare
 begin
   if v_event_id is null then
     raise exception 'Link antrian tidak valid';
-  end if;
-  if length(v_name) = 0 then
-    raise exception 'Nama wajib diisi';
   end if;
   if left(v_phone, 1) = '0' then v_phone := '62' || substr(v_phone, 2); end if;
   if v_phone <> '' and length(v_phone) not between 9 and 15 then

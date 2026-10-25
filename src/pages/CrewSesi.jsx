@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
-import { FiLink2, FiWifiOff, FiCalendar, FiPlus, FiMinus, FiTrash2, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiLink2, FiWifiOff, FiCalendar, FiPlus, FiMinus, FiTrash2, FiEye, FiEyeOff, FiLoader } from 'react-icons/fi';
 import SwipeableSessionRow from '../components/SwipeableSessionRow';
 import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, sessionPrice, eventTotal, pricingOf } from '../lib/photoSession';
 
@@ -30,7 +30,8 @@ const CrewSesi = () => {
   const [status, setStatus] = useState('loading');
   const [noVoucher, setNoVoucher] = useState(false);
   const [prints, setPrints] = useState(0);
-  const percent = event?.pricing_mode === 'percent'; // mode persentase: satu tarif, tanpa voucher
+  const pricing = pricingOf(event);
+  const percent = pricing.mode === 'percent'; // mode persentase: satu tarif, tanpa voucher
   const [confirmId, setConfirmId] = useState(null);
   const [hideTotal, setHideTotal] = useState(() => {
     try { return localStorage.getItem('sesiHideTotal') === '1'; } catch { return false; }
@@ -39,6 +40,8 @@ const CrewSesi = () => {
   // Perubahan dikirim berurutan; polling dilewati selama masih ada yang belum terkirim.
   const chain = useRef(Promise.resolve());
   const pending = useRef(0);
+  const isAddingRef = useRef(false);
+  const [isAddingSession, setIsAddingSession] = useState(false);
 
   useEffect(() => {
     const robotsMeta = document.querySelector('meta[name="robots"]');
@@ -81,7 +84,18 @@ const CrewSesi = () => {
 
   // Tampilkan perubahan langsung, lalu kirim ke server dan pakai balasan server sebagai data akhir.
   const mutate = (optimistic, fn, args, errorMessage) => {
-    setEvent((ev) => ({ ...ev, sessions: optimistic(ev.sessions) }));
+    setEvent((ev) => {
+      if (!ev) return ev;
+      const rawList = optimistic(ev.sessions || []);
+      const seen = new Set();
+      const cleanList = rawList.filter((s) => {
+        if (!s || !s.id) return false;
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
+      return { ...ev, sessions: cleanList };
+    });
     pending.current += 1;
     chain.current = chain.current.then(async () => {
       try {
@@ -89,7 +103,15 @@ const CrewSesi = () => {
         if (!data) {
           setStatus('notfound');
         } else if (pending.current === 1) {
-          setEvent(data);
+          const rawServer = Array.isArray(data.sessions) ? data.sessions : [];
+          const sSeen = new Set();
+          const cleanSessions = rawServer.filter((s) => {
+            if (!s || !s.id) return false;
+            if (sSeen.has(s.id)) return false;
+            sSeen.add(s.id);
+            return true;
+          });
+          setEvent({ ...data, sessions: cleanSessions });
         }
       } catch {
         toast.error(errorMessage);
@@ -104,24 +126,40 @@ const CrewSesi = () => {
       }
       pending.current -= 1;
     });
+    return chain.current;
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
+    if (isAddingRef.current) return;
+    isAddingRef.current = true;
+    setIsAddingSession(true);
+
     const session = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       no_voucher: percent ? false : noVoucher,
       prints,
       created_at: new Date().toISOString(),
     };
-    mutate(
-      (list) => [...list, session],
-      'crew_add_session',
-      { p_id: session.id, p_no_voucher: session.no_voucher, p_prints: session.prints },
-      'Gagal mencatat sesi, coba lagi'
-    );
+
     setNoVoucher(false);
     setPrints(0);
-    toast.success('Sesi dicatat');
+
+    try {
+      await mutate(
+        (list) => (list.some((s) => s.id === session.id) ? list : [...list, session]),
+        'crew_add_session',
+        { p_id: session.id, p_no_voucher: session.no_voucher, p_prints: session.prints },
+        'Gagal mencatat sesi, coba lagi'
+      );
+      toast.success('Sesi dicatat');
+    } catch {
+      // error ditangani di mutate
+    } finally {
+      setTimeout(() => {
+        isAddingRef.current = false;
+        setIsAddingSession(false);
+      }, 500);
+    }
   };
 
   const handleDelete = (id) => {
@@ -226,8 +264,8 @@ const CrewSesi = () => {
               <p className="text-xs text-[var(--admin-text-muted)] mb-2">Tipe</p>
               <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[var(--admin-hover-bg)]">
                 {[
-                  { value: false, label: 'Voucher', price: VOUCHER_PRICE },
-                  { value: true, label: 'Non-voucher', price: NO_VOUCHER_PRICE },
+                  { value: false, label: 'Voucher', price: pricing.voucherPrice },
+                  { value: true, label: 'Non-voucher', price: pricing.noVoucherPrice },
                 ].map((opt) => (
                   <button
                     key={opt.label}
@@ -247,7 +285,7 @@ const CrewSesi = () => {
               </>
               )}
 
-              <p className="text-xs text-[var(--admin-text-muted)] mt-4 mb-2">Jumlah print (+{formatRp(PRINT_PRICE)}/print)</p>
+              <p className="text-xs text-[var(--admin-text-muted)] mt-4 mb-2">Jumlah print (+{formatRp(pricing.printPrice)}/print)</p>
               <div className="flex items-center justify-between rounded-xl bg-[var(--admin-hover-bg)] p-1">
                 <button
                   type="button"
@@ -272,11 +310,26 @@ const CrewSesi = () => {
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-[var(--admin-text-muted)]">Harga sesi</p>
                   <p className="text-lg font-bold text-[var(--admin-accent)] tabular-nums">
-                    {formatRp((percent ? (event?.session_price || 45000) : noVoucher ? NO_VOUCHER_PRICE : VOUCHER_PRICE) + prints * PRINT_PRICE)}
+                    {formatRp((percent ? pricing.sessionPrice : noVoucher ? pricing.noVoucherPrice : pricing.voucherPrice) + prints * pricing.printPrice)}
                   </p>
                 </div>
-                <button onClick={handleAdd} className="btn-primary px-5 py-3 text-sm flex items-center gap-2">
-                  <FiPlus size={16} /> Tambah Sesi
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  disabled={isAddingSession}
+                  className="btn-primary px-5 py-3 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {isAddingSession ? (
+                    <>
+                      <FiLoader className="animate-spin" size={16} />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiPlus size={16} />
+                      <span>Tambah Sesi</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -321,7 +374,7 @@ const CrewSesi = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-semibold text-[var(--admin-text-main)] tabular-nums">{formatRp(sessionPrice(s, pricingOf(event)))}</span>
+                          <span className="text-sm font-semibold text-[var(--admin-text-main)] tabular-nums">{formatRp(sessionPrice(s, pricing))}</span>
                           <button
                             onClick={() => setConfirmId(s.id)}
                             className="hidden sm:block p-1.5 rounded-md text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"

@@ -51,6 +51,7 @@ const QueueAdmin = () => {
   const [addPhone, setAddPhone] = useState('');
   const [addingGuest, setAddingGuest] = useState(false);
   const tokenRequested = useRef(new Set());
+  const isCallingRef = useRef(false);
 
   /* ── Event ─────────────────────────────────────────────── */
   const fetchEvents = useCallback(async () => {
@@ -181,39 +182,59 @@ const QueueAdmin = () => {
   // Bila masih ada tamu aktif, tanyakan dulu nasibnya: selesai (sesi dicatat) atau dilewati (tidak datang).
   // Data dimuat ulang dulu: tombol tidak boleh bekerja berdasarkan daftar yang sudah usang.
   const requestCallNext = async () => {
-    const fresh = await fetchQueues(selectedEventId);
-    const rows = fresh || queues;
-    if (!rows.some((q) => q.status === 'waiting')) {
-      toast('Tidak ada tamu yang menunggu (daftar sudah diperbarui)');
-      return;
+    if (isCallingRef.current || busy) return;
+    isCallingRef.current = true;
+    setBusy(true);
+
+    try {
+      const fresh = await fetchQueues(selectedEventId);
+      const rows = fresh || queues;
+      if (!rows.some((q) => q.status === 'waiting')) {
+        toast('Tidak ada tamu yang menunggu (daftar sudah diperbarui)');
+        isCallingRef.current = false;
+        setBusy(false);
+        return;
+      }
+      if (rows.some(isActive)) {
+        setNextChoiceOpen(true);
+        setBusy(false);
+      } else {
+        await callNext('complete');
+      }
+    } catch {
+      isCallingRef.current = false;
+      setBusy(false);
     }
-    if (rows.some(isActive)) setNextChoiceOpen(true);
-    else callNext('complete');
   };
 
   const callNext = (currentAction = 'complete') =>
     run(async () => {
       unlockAudio();
-      const { data, error } = await supabase.rpc('admin_queue_call_next', {
-        p_event_id: selectedEventId,
-        p_auto_session: autoSession,
-        p_current_action: currentAction,
-      });
-      if (error) throw error;
-      const fresh = await fetchQueues(selectedEventId);
-      if (!data) {
-        // Server bilang kosong. Bandingkan dengan data terbaru agar ketidaksinkronan terlihat jelas.
-        const stillWaiting = (fresh || []).filter((q) => q.status === 'waiting').length;
-        if (stillWaiting > 0) {
-          console.warn('admin_queue_call_next mengembalikan kosong padahal ada tamu menunggu', { selectedEventId, currentAction, fresh });
-          toast.error(`Gagal memanggil: server tidak menemukan tamu, padahal ada ${stillWaiting} menunggu. Coba lagi.`);
-        } else {
-          toast('Tidak ada tamu yang menunggu (daftar sudah diperbarui)');
+      try {
+        const { data, error } = await supabase.rpc('admin_queue_call_next', {
+          p_event_id: selectedEventId,
+          p_auto_session: autoSession,
+          p_current_action: currentAction,
+        });
+        if (error) throw error;
+        const fresh = await fetchQueues(selectedEventId);
+        if (!data) {
+          // Server bilang kosong. Bandingkan dengan data terbaru agar ketidaksinkronan terlihat jelas.
+          const stillWaiting = (fresh || []).filter((q) => q.status === 'waiting').length;
+          if (stillWaiting > 0) {
+            console.warn('admin_queue_call_next mengembalikan kosong padahal ada tamu menunggu', { selectedEventId, currentAction, fresh });
+            toast.error(`Gagal memanggil: server tidak menemukan tamu, padahal ada ${stillWaiting} menunggu. Coba lagi.`);
+          } else {
+            toast('Tidak ada tamu yang menunggu (daftar sudah diperbarui)');
+          }
+          return;
         }
-        return;
+        toast.success(`Memanggil ${data.queue_number}${data.customer_name ? ` · ${data.customer_name}` : ''}`);
+      } finally {
+        setTimeout(() => {
+          isCallingRef.current = false;
+        }, 1000);
       }
-      playChime(0.5);
-      toast.success(`Memanggil ${data.queue_number} · ${data.customer_name}`);
     }, 'Gagal memanggil antrian');
 
   const complete = (item) =>
@@ -276,7 +297,6 @@ const QueueAdmin = () => {
 
   const recall = (item) => {
     unlockAudio();
-    playChime(0.5);
     // Status dikembalikan ke 'called' agar HP tamu yang sudah menekan "menuju booth" berbunyi lagi.
     return updateRow(
       item,
@@ -319,17 +339,18 @@ const QueueAdmin = () => {
       let phone = addPhone.trim().replace(/[^0-9]/g, '');
       if (phone.startsWith('0')) phone = `62${phone.slice(1)}`;
 
+      const finalName = addName.trim() || 'Tamu';
       const { error } = await supabase.from('event_queues').insert({
         event_id: selectedEventId,
         queue_number: queueNumber,
         seq_number: nextSeq,
-        customer_name: addName.trim(),
+        customer_name: finalName,
         customer_phone: phone,
         status: 'waiting',
       });
       if (error) throw error;
 
-      toast.success(`Nomor ${queueNumber} (${addName.trim()}) berhasil ditambahkan`);
+      toast.success(`Nomor ${queueNumber} (${finalName}) berhasil ditambahkan`);
       setAddName('');
       setAddPhone('');
       setAddOpen(false);
@@ -506,7 +527,9 @@ const QueueAdmin = () => {
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                       <div className="min-w-0">
                         <p className="text-5xl sm:text-6xl font-bold font-mono tracking-tight num leading-none">{active.queue_number}</p>
-                        <p className="text-base sm:text-lg font-medium mt-2 truncate">{active.customer_name}</p>
+                        {active.customer_name ? (
+                          <p className="text-base sm:text-lg font-medium mt-2 truncate">{active.customer_name}</p>
+                        ) : null}
                         <p className="text-xs sm:text-sm text-[var(--admin-text-muted)] mt-0.5">
                           Dipanggil {active.called_count || 1}×
                           {active.customer_phone && (
@@ -605,7 +628,7 @@ const QueueAdmin = () => {
                 {waiting[0] ? (
                   <div className="flex items-center justify-between gap-3 mb-4">
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{waiting[0].customer_name}</p>
+                      <p className="font-medium truncate">{waiting[0].customer_name || 'Tamu antrian'}</p>
                       <p className="text-sm text-[var(--admin-text-muted)] font-mono">{waiting[0].customer_phone || 'Tanpa nomor'}</p>
                     </div>
                     <p className="text-3xl font-bold font-mono num">{waiting[0].queue_number}</p>
@@ -615,7 +638,7 @@ const QueueAdmin = () => {
                 )}
 
                 <div className="mt-auto space-y-3">
-                  <button onClick={requestCallNext} disabled={busy || waiting.length === 0} className="ui-btn ui-btn-primary ui-btn-lg w-full min-h-12">
+                  <button type="button" onClick={requestCallNext} disabled={busy || waiting.length === 0} className="ui-btn ui-btn-primary ui-btn-lg w-full min-h-12">
                     <FiPlay size={16} /> Panggil berikutnya
                   </button>
                   <label className="flex items-start gap-2.5 text-sm text-[var(--admin-text-muted)] cursor-pointer">
@@ -666,7 +689,7 @@ const QueueAdmin = () => {
                       <li key={item.id} className="px-4 py-3 flex items-center gap-3 sm:gap-4">
                         <span className="w-14 shrink-0 font-mono font-semibold num">{item.queue_number}</span>
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">{item.customer_name}</p>
+                          <p className="font-medium truncate">{item.customer_name || 'Tamu antrian'}</p>
                           <p className="text-sm text-[var(--admin-text-muted)] truncate">
                             <span className="sm:hidden font-semibold text-[var(--admin-text-main)]">{meta.label} · </span>
                             <span className="font-mono">{item.customer_phone || '–'}</span>
@@ -745,12 +768,11 @@ const QueueAdmin = () => {
         >
           <form onSubmit={handleAddManual} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">Nama Tamu <span className="text-[#D90429]">*</span></label>
+              <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">Nama Tamu (Opsional)</label>
               <input
                 type="text"
-                required
                 autoFocus
-                placeholder="cth. Budi / Tamu VIP"
+                placeholder="cth. Budi / Tamu VIP (bisa dikosongkan)"
                 value={addName}
                 onChange={(e) => setAddName(e.target.value)}
                 className="ui-input w-full"
@@ -781,12 +803,44 @@ const QueueAdmin = () => {
           title={`${active.queue_number} belum diselesaikan`}
           description={`${active.customer_name} masih berstatus ${statusMeta(active.status).label.toLowerCase()}. Apa yang terjadi dengan tamu ini sebelum memanggil berikutnya?`}
           size="sm"
-          onClose={() => setNextChoiceOpen(false)}
+          onClose={() => {
+            setNextChoiceOpen(false);
+            isCallingRef.current = false;
+          }}
           footer={
             <>
-              <button onClick={() => setNextChoiceOpen(false)} className="ui-btn">Batal</button>
-              <button onClick={() => { setNextChoiceOpen(false); callNext('skip'); }} className="ui-btn">Tidak datang (lewati)</button>
-              <button onClick={() => { setNextChoiceOpen(false); callNext('complete'); }} className="ui-btn ui-btn-primary">
+              <button
+                type="button"
+                onClick={() => {
+                  setNextChoiceOpen(false);
+                  isCallingRef.current = false;
+                }}
+                className="ui-btn"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  if (busy) return;
+                  setNextChoiceOpen(false);
+                  callNext('skip');
+                }}
+                className="ui-btn"
+              >
+                Tidak datang (lewati)
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  if (busy) return;
+                  setNextChoiceOpen(false);
+                  callNext('complete');
+                }}
+                className="ui-btn ui-btn-primary"
+              >
                 {active.status === 'serving' ? 'Selesai & lanjut' : 'Sudah difoto & lanjut'}
               </button>
             </>

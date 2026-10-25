@@ -130,8 +130,11 @@ as $$
   select jsonb_build_object(
     'name', e.name,
     'date', e.date,
-    'pricing_mode', e.pricing_mode,
-    'session_price', e.session_price,
+    'pricing_mode', coalesce(e.pricing_mode, 'voucher'),
+    'session_price', coalesce(e.session_price, 45000),
+    'voucher_price', coalesce(e.voucher_price, 30000),
+    'no_voucher_price', coalesce(e.no_voucher_price, 35000),
+    'print_price', coalesce(e.print_price, 10000),
     'sessions', coalesce(
       (select jsonb_agg(jsonb_build_object(
           'id', s->>'id',

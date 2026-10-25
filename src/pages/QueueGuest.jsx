@@ -93,8 +93,6 @@ const QueueGuest = () => {
   const [state, setState] = useState(() => readCachedState(gate));
   const [status, setStatus] = useState(() => (readCachedState(gate) ? 'ready' : 'loading'));
   const [usedReason, setUsedReason] = useState('used'); // used | left
-  const [name, setName] = useState('');
-  const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -112,7 +110,7 @@ const QueueGuest = () => {
 
     let alive = true;
     preload.promise
-      .then((data) => {
+      .then(async (data) => {
         if (!alive || !data) return;
         if (preload.session) {
           setState(data);
@@ -124,6 +122,15 @@ const QueueGuest = () => {
           if (data.state) {
             setState(data.state);
             writeCachedState(gate, data.state);
+            setStatus('ready');
+          } else {
+            // DB lama: fetch state seketika tanpa menunggu timer polling
+            const { data: st } = await supabase.rpc('get_entry_state', { p_session: data.session });
+            if (!alive) return;
+            if (st) {
+              setState(st);
+              writeCachedState(gate, st);
+            }
             setStatus('ready');
           }
         }
@@ -145,7 +152,7 @@ const QueueGuest = () => {
       return undefined;
     }
     let alive = true;
-    claimGate(gate).then(({ session: claimed, state: initialState, error }) => {
+    claimGate(gate).then(async ({ session: claimed, state: initialState, error }) => {
       if (!alive) return;
       if (error) {
         setStatus('error');
@@ -160,6 +167,14 @@ const QueueGuest = () => {
       if (initialState) {
         setState(initialState);
         writeCachedState(gate, initialState);
+        setStatus('ready');
+      } else {
+        const { data: st } = await supabase.rpc('get_entry_state', { p_session: claimed });
+        if (!alive) return;
+        if (st) {
+          setState(st);
+          writeCachedState(gate, st);
+        }
         setStatus('ready');
       }
     });
@@ -194,12 +209,33 @@ const QueueGuest = () => {
   const board = useMemo(() => state?.board || [], [state]);
   const myTurn = !!ticket && ACTIVE_STATUSES.includes(ticket.status);
 
-  // Lebih sering saat giliran sudah dekat atau sedang dipanggil, santai saat masih lama.
+  // Polling dipercepat (1.5s - 3s) agar tidak ada jeda lama menunggu panggilan
   const waiting = useMemo(() => board.filter((q) => q.status === 'waiting'), [board]);
   const position = ticket?.status === 'waiting' ? waiting.findIndex((q) => q.id === ticket.id) + 1 : 0;
   const ahead = Math.max(0, position - 1);
-  const interval = !ticket ? 5000 : myTurn || (position > 0 && position <= 3) ? 3000 : 6000;
+  const interval = !ticket ? 3000 : myTurn || (position > 0 && position <= 3) ? 1500 : 2500;
   usePolling(refresh, interval, status === 'ready');
+
+  // Realtime subscription via websocket: saat giliran dipanggil/selesai, layar HP bereaksi instan (50ms)
+  useEffect(() => {
+    const eventId = state?.event?.id;
+    if (!eventId || status !== 'ready') return undefined;
+
+    const channel = supabase
+      .channel(`queue_guest_rt_${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'event_queues', filter: `event_id=eq.${eventId}` },
+        () => {
+          refresh();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [state?.event?.id, status, refresh]);
 
   // Peringatan hanya saat status 'called' (termasuk panggilan ulang admin, yang mengembalikan status ke 'called').
   // Status heading/serving menutup peringatan agar tidak berbunyi lagi saat sesi foto dimulai.
@@ -271,32 +307,31 @@ const QueueGuest = () => {
     };
   }, [liveTicket]);
 
-  const validate = () => {
-    const next = {};
-    if (!name.trim()) next.name = 'Isi nama panggilan Anda.';
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
-
   const takeTicket = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     unlockAudio();
-    if (!validate()) return;
+    if (submitting) return;
     setSubmitting(true);
     const { data, error } = await supabase.rpc('take_queue_ticket', {
       p_session: session,
-      p_name: name.trim(),
+      p_name: '',
     });
     setSubmitting(false);
     if (error || !data) {
       toast.error(error?.message?.includes('Terlalu banyak') ? 'Sedang ramai, coba lagi sebentar.' : error?.message?.includes('Sesi tidak valid') ? 'Link sudah tidak berlaku. Pindai QR lagi.' : 'Gagal mengambil nomor. Coba lagi.');
       return;
     }
-    setState((prev) => {
-      const next = { ...(prev || {}), ticket: data };
-      writeCachedState(gate, next);
-      return next;
-    });
+    if (data.state) {
+      setState(data.state);
+      writeCachedState(gate, data.state);
+    } else {
+      setState((prev) => {
+        const next = { ...(prev || {}), ticket: data };
+        writeCachedState(gate, next);
+        return next;
+      });
+      refresh();
+    }
     toast.success(data.existing ? `Anda sudah punya antrian ${data.queue_number}.` : 'Nomor antrian berhasil diambil');
   };
 
@@ -421,7 +456,9 @@ const QueueGuest = () => {
           >
             <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">Nomor antrian Anda</p>
             <p className="font-extrabold font-mono tracking-tight leading-none my-[clamp(0.15rem,0.8vh,0.5rem)] num" style={{ fontSize: 'clamp(3.4rem, 13vh, 6rem)' }}>{ticket.queue_number}</p>
-            <p className="text-sm font-medium text-zinc-200 truncate">{ticket.customer_name}</p>
+            {ticket.customer_name ? (
+              <p className="text-sm font-medium text-zinc-200 truncate">{ticket.customer_name}</p>
+            ) : null}
             <div className="mt-[clamp(0.5rem,1.4vh,0.9rem)]">
               {myTurn ? (
                 <p className="inline-flex items-center gap-2 rounded-full bg-emerald-400 text-black font-semibold text-sm px-4 py-1.5">
@@ -449,28 +486,43 @@ const QueueGuest = () => {
       <div className={`relative shrink-0 px-4 lg:px-0 lg:w-[27rem] ${ticket ? 'mt-1 sm:mt-3 lg:mt-0' : ''}`}>
         {!ticket ? (
           <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>
-            <h2 className="text-[clamp(1.05rem,2.8vh,1.3rem)] font-bold">Ambil nomor antrian</h2>
-            <p className={`text-xs text-zinc-400 mt-0.5 ${hideOnShort}`}>Tidak perlu berdiri menunggu. HP Anda berbunyi saat giliran tiba.</p>
+            <div className="text-center sm:text-left">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-semibold mb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                QR Berhasil Terpindai
+              </span>
+              <h2 className="text-[clamp(1.15rem,3vh,1.45rem)] font-bold text-white">Ambil nomor antrian</h2>
+              <p className={`text-xs text-zinc-400 mt-1 leading-relaxed ${hideOnShort}`}>
+                Tidak perlu berdiri menunggu. HP Anda berbunyi saat giliran tiba.
+              </p>
+            </div>
 
-            <form onSubmit={takeTicket} className={`mt-[clamp(0.6rem,1.8vh,1rem)] flex flex-col ${fieldGap}`} noValidate>
-              <div>
-                <label htmlFor="guest-name" className="block text-xs font-semibold text-zinc-300 mb-1">Nama panggilan</label>
-                <div className="relative">
-                  <FiUser size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
-                  <input
-                    id="guest-name" name="nickname" type="text" autoComplete="nickname" maxLength={40}
-                    value={name} onChange={(e) => setName(e.target.value)}
-                    aria-invalid={!!errors.name} aria-describedby={errors.name ? 'guest-name-err' : undefined}
-                    placeholder="Contoh: Rina & teman"
-                    className="ui-input bg-white/5 border-white/15 text-white pl-10"
-                  />
-                </div>
-                {errors.name && <p id="guest-name-err" role="alert" className="text-xs text-red-400 mt-1">{errors.name}</p>}
-              </div>
-              <button type="submit" disabled={submitting} className="ui-btn ui-btn-primary ui-btn-lg w-full shadow-lg shadow-[#D90429]/30">
-                {submitting ? 'Memproses…' : <>Ambil nomor <FiArrowRight size={18} /></>}
+            <div className="mt-5 sm:mt-6 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={takeTicket}
+                disabled={submitting}
+                className="ui-btn ui-btn-primary ui-btn-lg w-full py-4 text-base font-bold shadow-lg shadow-[#D90429]/30 flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
+              >
+                {submitting ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Menerbitkan tiket...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Ambil Nomor Sekarang</span>
+                    <FiArrowRight size={20} />
+                  </>
+                )}
               </button>
-            </form>
+
+              <div className="flex items-center justify-center gap-2 text-[11px] text-zinc-400 mt-0.5">
+                <span>⚡ 1-Tap Instan</span>
+                <span>•</span>
+                <span>Tiket langsung terbit</span>
+              </div>
+            </div>
           </motion.section>
         ) : (
           <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>

@@ -124,6 +124,15 @@
     background: #A50320;
   }
 
+  /* UTILITY HIDE SCROLLBAR */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
   /* TYPOGRAPHY SYSTEM */
   h1,
   h2,

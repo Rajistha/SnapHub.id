@@ -30,7 +30,28 @@ const QueueQr = () => {
   useEffect(() => {
     refresh();
   }, [refresh]);
-  usePolling(refresh, 3000, !invalid);
+  usePolling(refresh, 2500, !invalid);
+
+  // Realtime subscription via websocket
+  useEffect(() => {
+    const eventId = event?.id;
+    if (!eventId || invalid) return undefined;
+
+    const channel = supabase
+      .channel(`queue_qr_rt_${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'queue_entries', filter: `event_id=eq.${eventId}` },
+        () => {
+          refresh();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [event?.id, invalid, refresh]);
 
   useEffect(() => {
     const onChange = () => setFullscreen(!!document.fullscreenElement);
@@ -71,51 +92,68 @@ const QueueQr = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#08080a] text-white flex flex-col items-center justify-between p-6 sm:p-10 select-none">
-      <header className="w-full flex items-center justify-between gap-4">
-        <img src="/icons.svg" alt="SnapHub" className="h-9 w-auto" />
+    <div className="h-[100dvh] max-h-[100dvh] min-h-[100dvh] overflow-hidden bg-[#08080a] text-white flex flex-col items-center justify-between p-3.5 sm:p-6 lg:p-8 select-none">
+      <header className="w-full flex items-center justify-between gap-4 pb-2 sm:pb-3 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
+          <img src="/icons.svg" alt="SnapHub" className="h-7 sm:h-9 w-auto" />
+          <span className="text-sm sm:text-base font-bold text-zinc-300 truncate">{event?.name || 'SnapHub Photobooth'}</span>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 sm:px-3.5 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold text-emerald-300">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
             </span>
             QR Dinamis Aktif
           </span>
-          <button onClick={toggleFullscreen} className="ui-btn ui-btn-icon border-white/15 hover:bg-white/10" aria-label={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'}>
-            {fullscreen ? <FiMinimize2 size={16} /> : <FiMaximize2 size={16} />}
+          <button
+            onClick={toggleFullscreen}
+            className="ui-btn ui-btn-icon border-white/15 hover:bg-white/10 h-8 w-8 sm:h-9 sm:w-9"
+            aria-label={fullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
+          >
+            {fullscreen ? <FiMinimize2 size={15} /> : <FiMaximize2 size={15} />}
           </button>
         </div>
       </header>
 
-      <main className="flex flex-col items-center text-center py-8">
-        <p className="text-lg text-zinc-400">{event?.name || 'SnapHub Photobooth'}</p>
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mt-2">Ambil nomor antrian</h1>
-        <p className="text-lg sm:text-xl text-zinc-300 mt-3">Pindai QR dengan kamera HP, isi nama, lalu tunggu dipanggil.</p>
+      <main className="flex-1 min-h-0 flex flex-col items-center justify-center text-center py-2 sm:py-3 w-full max-w-4xl">
+        <h1 className="text-[clamp(1.5rem,4vh,2.75rem)] font-extrabold tracking-tight text-white leading-tight">
+          Ambil Nomor Antrian
+        </h1>
+        <p className="text-[clamp(0.85rem,2vh,1.15rem)] text-zinc-300 mt-1 max-w-lg leading-snug">
+          Pindai QR dengan kamera HP, isi nama, lalu tunggu dipanggil santai tanpa antre berdiri.
+        </p>
 
-        <div className="bg-white rounded-3xl p-5 mt-8 shadow-2xl">
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-4 my-2 sm:my-3 shadow-2xl shadow-rose-950/20">
           <img
             src={qrDataUrl || qrUrl}
             alt="QR code untuk mengambil nomor antrian"
-            width="640"
-            height="640"
-            className="block w-[min(72vw,60vh,28rem)] h-auto aspect-square rounded-xl"
+            className="block w-[clamp(10rem,35vh,20rem)] h-[clamp(10rem,35vh,20rem)] object-contain rounded-xl"
           />
         </div>
 
-        <ol className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left max-w-3xl w-full">
-          {['Pindai QR', 'Isi nama panggilan', 'HP berbunyi saat giliran Anda'].map((step, i) => (
-            <li key={step} className="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-3">
-              <span className="w-8 h-8 shrink-0 rounded-full bg-[#D90429] text-white font-semibold flex items-center justify-center num">{i + 1}</span>
-              <span className="font-medium">{step}</span>
+        <ol className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 text-left max-w-2xl w-full">
+          {[
+            { num: '1', title: 'Pindai QR', desc: 'Gunakan kamera HP Anda' },
+            { num: '2', title: 'Ambil Nomor', desc: '1-Tap instan tanpa repot' },
+            { num: '3', title: 'HP Berbunyi', desc: 'Notifikasi saat giliran tiba' },
+          ].map((step) => (
+            <li key={step.num} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 sm:py-2.5">
+              <span className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 rounded-full bg-[#D90429] text-white font-bold text-xs sm:text-sm flex items-center justify-center num shadow-sm">
+                {step.num}
+              </span>
+              <div className="min-w-0">
+                <p className="font-semibold text-xs sm:text-sm text-white leading-tight truncate">{step.title}</p>
+                <p className="text-[10px] sm:text-[11px] text-zinc-400 leading-tight truncate mt-0.5">{step.desc}</p>
+              </div>
             </li>
           ))}
         </ol>
       </main>
 
-      <footer className="w-full border-t border-white/10 pt-4 flex items-center justify-between gap-4 text-sm text-zinc-400">
+      <footer className="w-full border-t border-white/10 pt-2 sm:pt-2.5 flex items-center justify-between gap-4 text-[11px] sm:text-xs text-zinc-400 shrink-0">
         <span>Capture Every Smile with SnapHub</span>
-        <span>Powered by SnapHub.id</span>
+        <span className="font-medium">Powered by SnapHub.id</span>
       </footer>
     </div>
   );

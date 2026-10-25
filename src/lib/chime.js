@@ -109,6 +109,10 @@ export const unlockAudio = async () => {
       // Pemicu izin audio di browser mobile (Safari/Chrome)
       a.load();
     }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.resume();
+      window.speechSynthesis.getVoices();
+    }
   } catch {
     /* audio tidak tersedia */
   }
@@ -146,11 +150,30 @@ const note = (c, freq, start, duration, gainValue) => {
   }
 };
 
-// Empat nada naik C5-E5-G5-C6. Menggunakan HTML5 Audio dan Web Audio sekaligus agar 100% berbunyi di semua HP.
+// Empat nada naik C5-E5-G5-C6. Menggunakan Web Audio Oscillator sebagai audio utama, dan HTML5 Audio WAV sebagai fallback.
+// Hanya memutar SATU sumber audio agar tidak terdengar dobel/bergema.
 export const playChime = async (volume = 0.8) => {
-  let played = false;
+  // 1. Coba Web Audio Oscillator (instan & jernih tanpa delay decoding)
+  try {
+    const c = getContext();
+    if (c) {
+      if (c.state === 'suspended') {
+        await c.resume();
+      }
+      if (c.state === 'running') {
+        const t = c.currentTime + 0.02;
+        note(c, 523.25, t, 0.35, 0.85 * volume);
+        note(c, 659.25, t + 0.22, 0.35, 0.85 * volume);
+        note(c, 783.99, t + 0.44, 0.35, 0.85 * volume);
+        note(c, 1046.5, t + 0.66, 0.8, 0.95 * volume);
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn('WebAudio play error:', err);
+  }
 
-  // 1. Coba HTML5 Audio (sangat andal di Safari iOS & browser mobile)
+  // 2. Fallback ke HTML5 Audio jika Web Audio tidak berjalan (misal iOS silent switch)
   try {
     const a = getHtmlAudio();
     if (a) {
@@ -159,32 +182,15 @@ export const playChime = async (volume = 0.8) => {
       const p = a.play();
       if (p && typeof p.then === 'function') {
         await p;
-        played = true;
+        return true;
       }
+      return true;
     }
   } catch {
-    /* fallback ke Web Audio di bawah */
+    /* fallback audio gagal */
   }
 
-  // 2. Coba Web Audio Oscillator
-  try {
-    const c = getContext();
-    if (c) {
-      if (c.state === 'suspended') {
-        await c.resume();
-      }
-      const t = c.currentTime + 0.05;
-      note(c, 523.25, t, 0.35, 0.85 * volume);
-      note(c, 659.25, t + 0.22, 0.35, 0.85 * volume);
-      note(c, 783.99, t + 0.44, 0.35, 0.85 * volume);
-      note(c, 1046.5, t + 0.66, 0.8, 0.95 * volume);
-      played = true;
-    }
-  } catch (err) {
-    console.warn('WebAudio play error:', err);
-  }
-
-  return played;
+  return false;
 };
 
 export const vibrate = (pattern = [300, 150, 300, 150, 500]) => {
@@ -215,12 +221,17 @@ const pickVoice = () => {
   }
 };
 
+// Menjaga referensi objek utterance agar tidak di-garbage-collect oleh engine Chromium di tengah berbicara
+let activeUtterances = [];
+
 export const speak = (text, { repeat = 1, rate = 0.95 } = {}) => {
   if (!speechSupported()) return false;
   try {
     const synth = window.speechSynthesis;
     if (synth.paused) synth.resume();
     synth.cancel();
+    activeUtterances = [];
+
     for (let i = 0; i < repeat; i += 1) {
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'id-ID';
@@ -228,6 +239,14 @@ export const speak = (text, { repeat = 1, rate = 0.95 } = {}) => {
       u.volume = 1;
       const voice = pickVoice();
       if (voice) u.voice = voice;
+
+      u.onend = () => {
+        activeUtterances = activeUtterances.filter((x) => x !== u);
+      };
+      u.onerror = () => {
+        activeUtterances = activeUtterances.filter((x) => x !== u);
+      };
+      activeUtterances.push(u);
       synth.speak(u);
     }
     return true;
@@ -242,10 +261,19 @@ export const spokenNumber = (queueNumber) => {
   return m ? `${m[1]} ${m[2]}` : String(queueNumber || '');
 };
 
+let announceTimer = null;
+
 // Nada panggilan lalu suara manusia, diulang dua kali.
 export const announceQueue = (queueNumber, name) => {
+  if (announceTimer) {
+    clearTimeout(announceTimer);
+    announceTimer = null;
+  }
   playChime(1);
   const who = name ? `${name}, ` : '';
   const text = `Nomor antrian ${spokenNumber(queueNumber)}. ${who}silakan menuju photobooth.`;
-  setTimeout(() => speak(text, { repeat: 2 }), 1500);
+  announceTimer = setTimeout(() => {
+    speak(text, { repeat: 2 });
+    announceTimer = null;
+  }, 1300);
 };

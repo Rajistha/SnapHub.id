@@ -3,10 +3,15 @@
 -- Akses hanya lewat fungsi di bawah (token wajib cocok); tabel tetap terkunci untuk anon.
 
 alter table public.financial_events
-  add column if not exists crew_token text unique;
+  add column if not exists crew_token text unique,
+  add column if not exists pricing_mode text not null default 'voucher',
+  add column if not exists session_price integer not null default 45000,
+  add column if not exists share_percent numeric(5,2) not null default 15,
+  add column if not exists voucher_price integer not null default 30000,
+  add column if not exists no_voucher_price integer not null default 35000,
+  add column if not exists print_price integer not null default 10000;
 
--- Hitung ulang pemasukan event dan pengeluaran "Sharing profit" dari daftar sesi.
--- Rumus harus sama dengan src/lib/photoSession.js (voucher 30.000, non-voucher 35.000, print 10.000).
+-- Hitung ulang pemasukan event dan pengeluaran "Sharing profit" dari daftar sesi sesuai MoU event.
 create or replace function public.recalc_event_finance(p_event_id bigint)
 returns void
 language plpgsql
@@ -18,23 +23,43 @@ declare
   v_total numeric;
   v_vouchers integer;
   v_sharing numeric;
+  v_voucher_price integer;
+  v_novoucher_price integer;
+  v_print_price integer;
 begin
   select * into ev from public.financial_events where id = p_event_id;
   if not found then return; end if;
 
-  select
-    coalesce(sum(
-      (case when coalesce((s->>'no_voucher')::boolean, false) then 35000 else 30000 end)
-      + coalesce((s->>'prints')::int, 0) * 10000), 0),
-    count(*) filter (where not coalesce((s->>'no_voucher')::boolean, false))
-  into v_total, v_vouchers
-  from jsonb_array_elements(ev.sessions) s;
+  v_voucher_price := coalesce(ev.voucher_price, 30000);
+  v_novoucher_price := coalesce(ev.no_voucher_price, 35000);
+  v_print_price := coalesce(ev.print_price, 10000);
+
+  if coalesce(ev.pricing_mode, 'voucher') = 'percent' then
+    -- Satu tarif per sesi; sharing = persentase dari pemasukan sesi.
+    select coalesce(sum(coalesce(ev.session_price, 45000)
+                        + coalesce((s->>'prints')::int, 0) * v_print_price), 0)
+    into v_total
+    from jsonb_array_elements(ev.sessions) s;
+
+    v_sharing := round(v_total * coalesce(ev.share_percent, 0) / 100);
+  else
+    select
+      coalesce(sum(
+        (case when coalesce((s->>'no_voucher')::boolean, false)
+              then v_novoucher_price
+              else v_voucher_price
+         end)
+        + coalesce((s->>'prints')::int, 0) * v_print_price), 0),
+      count(*) filter (where not coalesce((s->>'no_voucher')::boolean, false))
+    into v_total, v_vouchers
+    from jsonb_array_elements(ev.sessions) s;
+
+    v_sharing := v_vouchers * coalesce(ev.share_per_voucher, 0);
+  end if;
 
   update public.financial_events
   set income = v_total + coalesce(income_adjustment, 0)
   where id = p_event_id;
-
-  v_sharing := v_vouchers * coalesce(ev.share_per_voucher, 0);
 
   update public.transactions
   set amount = v_sharing
@@ -48,7 +73,7 @@ end $$;
 
 revoke execute on function public.recalc_event_finance(bigint) from public, anon, authenticated;
 
--- Data yang boleh dilihat crew: nama, tanggal, sesi (tanpa harga/keuntungan).
+-- Data yang boleh dilihat crew: nama, tanggal, sesi & konfigurasi tarif MoU (mode persentase/voucher).
 create or replace function public.get_crew_event(p_token text)
 returns jsonb
 language sql
@@ -58,6 +83,11 @@ as $$
   select jsonb_build_object(
     'name', e.name,
     'date', e.date,
+    'pricing_mode', coalesce(e.pricing_mode, 'voucher'),
+    'session_price', coalesce(e.session_price, 45000),
+    'voucher_price', coalesce(e.voucher_price, 30000),
+    'no_voucher_price', coalesce(e.no_voucher_price, 35000),
+    'print_price', coalesce(e.print_price, 10000),
     'sessions', coalesce(
       (select jsonb_agg(jsonb_build_object(
           'id', s->>'id',
@@ -81,6 +111,8 @@ set search_path = public
 as $$
 declare
   ev_id bigint;
+  v_last_session jsonb;
+  v_last_created timestamptz;
 begin
   if p_token is null or p_id is null or length(p_id) not between 1 and 64 then
     return null;
@@ -89,6 +121,27 @@ begin
   -- Kunci baris event supaya dua crew yang mencatat bersamaan tidak saling menimpa
   select id into ev_id from public.financial_events where crew_token = p_token for update;
   if ev_id is null then return null; end if;
+
+  -- Proteksi duplikasi cepat (< 1 detik untuk tipe & print yang identik)
+  select s into v_last_session
+  from public.financial_events e,
+       lateral jsonb_array_elements(e.sessions) s
+  where e.id = ev_id
+  order by (s->>'created_at')::timestamptz desc
+  limit 1;
+
+  if v_last_session is not null then
+    begin
+      v_last_created := (v_last_session->>'created_at')::timestamptz;
+      if now() - v_last_created < interval '1 second'
+         and coalesce((v_last_session->>'no_voucher')::boolean, false) = coalesce(p_no_voucher, false)
+         and coalesce((v_last_session->>'prints')::int, 0) = coalesce(p_prints, 0) then
+        return public.get_crew_event(p_token);
+      end if;
+    exception when others then
+      -- Abaikan bila parsing tanggal sesi lama gagal
+    end;
+  end if;
 
   update public.financial_events
   set sessions = sessions || jsonb_build_array(jsonb_build_object(
@@ -143,12 +196,37 @@ set search_path = public
 as $$
 declare
   result jsonb;
+  v_last_session jsonb;
+  v_last_created timestamptz;
 begin
   if auth.role() <> 'authenticated' then raise exception 'not allowed'; end if;
   if p_id is null or length(p_id) not between 1 and 64 then return null; end if;
 
   perform 1 from public.financial_events where id = p_event_id for update;
   if not found then return null; end if;
+
+  -- Proteksi duplikasi cepat (< 1 detik untuk tipe & print yang identik)
+  select s into v_last_session
+  from public.financial_events e,
+       lateral jsonb_array_elements(e.sessions) s
+  where e.id = p_event_id
+  order by (s->>'created_at')::timestamptz desc
+  limit 1;
+
+  if v_last_session is not null then
+    begin
+      v_last_created := (v_last_session->>'created_at')::timestamptz;
+      if now() - v_last_created < interval '1 second'
+         and coalesce((v_last_session->>'no_voucher')::boolean, false) = coalesce(p_no_voucher, false)
+         and coalesce((v_last_session->>'prints')::int, 0) = coalesce(p_prints, 0) then
+        select jsonb_build_object('sessions', sessions, 'income', income) into result
+        from public.financial_events where id = p_event_id;
+        return result;
+      end if;
+    exception when others then
+      -- Abaikan bila parsing tanggal sesi lama gagal
+    end;
+  end if;
 
   update public.financial_events
   set sessions = sessions || jsonb_build_array(jsonb_build_object(
