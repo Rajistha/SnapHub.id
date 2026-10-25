@@ -744,7 +744,7 @@ const QueueAdmin = () => {
             </div>
 
             <p className="text-xs text-center text-[var(--admin-text-muted)] px-2">
-              Sistem antrian menggunakan QR dinamis sekali pakai. Setiap kali tamu memindai, QR di layar otomatis berganti agar antrian tidak disalahgunakan dari luar booth.
+              Tamu dapat memindai QR langsung dari layar TV atau tablet menggunakan kamera HP mereka untuk mengambil nomor antrian secara instan.
             </p>
           </div>
 

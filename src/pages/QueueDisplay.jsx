@@ -32,13 +32,6 @@ const QueueDisplay = () => {
   const token = tokenFromSlug(slug);
 
   const [state, setState] = useState(null);
-  const [gate, setGate] = useState(() => {
-    try {
-      return localStorage.getItem(`snaphub_gate_${token}`) || null;
-    } catch {
-      return null;
-    }
-  });
   const [invalid, setInvalid] = useState(false);
   const [offline, setOffline] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
@@ -46,24 +39,14 @@ const QueueDisplay = () => {
   const lastCallRef = useRef(null);
 
   const refresh = useCallback(async () => {
-    const [stateRes, gateRes] = await Promise.all([
-      supabase.rpc('get_queue_state', { p_token: token }),
-      supabase.rpc('queue_current_gate', { p_token: token }),
-    ]);
-    if (stateRes.error) {
+    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token });
+    if (error) {
       setOffline(true);
       return;
     }
     setOffline(false);
-    if (!stateRes.data) setInvalid(true);
-    else setState(stateRes.data);
-
-    if (gateRes.data) {
-      setGate(gateRes.data);
-      try {
-        localStorage.setItem(`snaphub_gate_${token}`, gateRes.data);
-      } catch {}
-    }
+    if (!data) setInvalid(true);
+    else setState(data);
   }, [token]);
 
   useEffect(() => {
@@ -140,7 +123,7 @@ const QueueDisplay = () => {
     else document.documentElement.requestFullscreen().catch(() => {});
   };
 
-  const guestUrl = gate ? `${queueBaseUrl()}/${gate}` : slug ? `${queueBaseUrl()}/${slug}` : '';
+  const guestUrl = slug ? `${queueBaseUrl()}/${slug}` : '';
   const [qrDataUrl, setQrDataUrl] = useState('');
 
   useEffect(() => {

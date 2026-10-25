@@ -11,58 +11,21 @@ const QueueQr = () => {
   const { slug } = useParams();
   const token = tokenFromSlug(slug);
   const [event, setEvent] = useState(null);
-  const [gate, setGate] = useState(() => {
-    try {
-      return localStorage.getItem(`snaphub_gate_${token}`) || null;
-    } catch {
-      return null;
-    }
-  });
   const [invalid, setInvalid] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
 
   const refresh = useCallback(async () => {
-    const [stateRes, gateRes] = await Promise.all([
-      supabase.rpc('get_queue_state', { p_token: token }),
-      supabase.rpc('queue_current_gate', { p_token: token }),
-    ]);
-    if (stateRes.data?.event) setEvent(stateRes.data.event);
-    else if (stateRes.data === null) setInvalid(true);
-
-    if (gateRes.data) {
-      setGate(gateRes.data);
-      try {
-        localStorage.setItem(`snaphub_gate_${token}`, gateRes.data);
-      } catch {}
-    }
+    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token });
+    if (error) return;
+    if (data?.event) setEvent(data.event);
+    else if (data === null) setInvalid(true);
   }, [token]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
-  usePolling(refresh, 2500, !invalid);
-
-  // Realtime subscription via websocket
-  useEffect(() => {
-    const eventId = event?.id;
-    if (!eventId || invalid) return undefined;
-
-    const channel = supabase
-      .channel(`queue_qr_rt_${eventId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'queue_entries', filter: `event_id=eq.${eventId}` },
-        () => {
-          refresh();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [event?.id, invalid, refresh]);
+  usePolling(refresh, 5000, !invalid);
 
   useEffect(() => {
     const onChange = () => setFullscreen(!!document.fullscreenElement);
@@ -75,7 +38,7 @@ const QueueQr = () => {
     else document.documentElement.requestFullscreen().catch(() => {});
   };
 
-  const guestUrl = gate ? `${queueBaseUrl()}/${gate}` : slug ? `${queueBaseUrl()}/${slug}` : '';
+  const guestUrl = slug ? `${queueBaseUrl()}/${slug}` : '';
 
   useEffect(() => {
     if (!guestUrl) return;
@@ -114,7 +77,7 @@ const QueueQr = () => {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
             </span>
-            QR Dinamis Aktif
+            QR Antrian Siap
           </span>
           <button
             onClick={toggleFullscreen}
@@ -131,7 +94,7 @@ const QueueQr = () => {
           Ambil Nomor Antrian
         </h1>
         <p className="text-[clamp(0.85rem,2vh,1.15rem)] text-zinc-300 mt-1 max-w-lg leading-snug">
-          Pindai QR dengan kamera HP, isi nama, lalu tunggu dipanggil santai tanpa antre berdiri.
+          Pindai QR dengan kamera HP, ambil nomor, lalu pantau giliran Anda dengan santai.
         </p>
 
         <div className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-4 my-2 sm:my-3 shadow-2xl shadow-rose-950/20 w-[clamp(10rem,35vh,20rem)] h-[clamp(10rem,35vh,20rem)] flex items-center justify-center">

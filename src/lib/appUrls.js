@@ -45,9 +45,23 @@ export const queueBaseUrl = () => {
 export const queueGuestUrl = (event) =>
   event?.queue_token ? `${queueBaseUrl()}/${slugify(event.name)}-${event.queue_token}` : '';
 
-export const queueDisplayUrl = (event) => (event?.queue_token ? `${queueGuestUrl(event)}/display` : '');
+export const queueDisplayUrl = (event) => {
+  if (!event?.queue_token) return '';
+  const slug = `${slugify(event.name)}-${event.queue_token}`;
+  if (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    return `/queue/${slug}/display`;
+  }
+  return `${queueGuestUrl(event)}/display`;
+};
 
-export const queueQrUrl = (event) => (event?.queue_token ? `${queueGuestUrl(event)}/qr` : '');
+export const queueQrUrl = (event) => {
+  if (!event?.queue_token) return '';
+  const slug = `${slugify(event.name)}-${event.queue_token}`;
+  if (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    return `/queue/${slug}/qr`;
+  }
+  return `${queueGuestUrl(event)}/qr`;
+};
 
 // Token selalu bagian setelah tanda hubung terakhir pada slug "nama-event-token".
 export const tokenFromSlug = (slug) => (slug ? slug.split('-').pop() : '');

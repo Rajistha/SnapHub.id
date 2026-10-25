@@ -75,7 +75,7 @@
     })();
   </script>
 
-  <!-- Halaman antrian tamu: klaim atau ambil data antrian segera, paralel dengan unduhan JavaScript & font -->
+  <!-- Halaman antrian tamu: minta data segera, paralel dengan unduhan JavaScript & font -->
   <script>
     (function () {
       try {
@@ -86,31 +86,22 @@
         if (!m || !m[1]) return;
         var slug = m[1];
         if (slug === 'display' || slug === 'qr' || slug.endsWith('/display') || slug.endsWith('/qr')) return;
-        var gate = slug.split('-').pop();
-        if (!gate) return;
+        var token = slug.split('-').pop();
+        if (!token) return;
 
-        var savedSession = null;
-        try { savedSession = localStorage.getItem('snaphub_entry_' + gate); } catch (e) {}
+        var savedTicket = null;
+        try { savedTicket = localStorage.getItem('snaphub_ticket_' + token); } catch (e) {}
 
-        var url, body;
-        if (savedSession) {
-          url = '%VITE_SUPABASE_URL%/rest/v1/rpc/get_entry_state';
-          body = JSON.stringify({ p_session: savedSession });
-        } else {
-          url = '%VITE_SUPABASE_URL%/rest/v1/rpc/queue_claim_gate';
-          body = JSON.stringify({ p_gate: gate });
-        }
-
-        var p = fetch(url, {
+        var p = fetch('%VITE_SUPABASE_URL%/rest/v1/rpc/get_queue_state', {
           method: 'POST',
           headers: {
             apikey: '%VITE_SUPABASE_ANON_KEY%',
             Authorization: 'Bearer %VITE_SUPABASE_ANON_KEY%',
             'Content-Type': 'application/json'
           },
-          body: body
+          body: JSON.stringify({ p_token: token, p_ticket_id: savedTicket || null })
         }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
-        window.__queuePreload = { gate: gate, session: savedSession, promise: p };
+        window.__queuePreload = { token: token, ticketId: savedTicket, promise: p };
       } catch (e) {}
     })();
   </script>
