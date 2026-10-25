@@ -47,7 +47,7 @@ const Modal = ({ title, description, onClose, children, size = 'md', footer }) =
           </button>
         </div>
         <div className="px-5 pb-5 overflow-y-auto">{children}</div>
-        {footer && <div className="px-5 py-4 border-t border-[var(--admin-border)] flex flex-col-reverse sm:flex-row sm:justify-end gap-2">{footer}</div>}
+        {footer && <div className="px-5 py-4 border-t border-[var(--admin-border)] flex flex-col-reverse sm:flex-row sm:flex-wrap sm:justify-end gap-2">{footer}</div>}
       </div>
     </div>
   );

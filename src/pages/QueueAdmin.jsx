@@ -229,7 +229,7 @@ const QueueAdmin = () => {
           }
           return;
         }
-        toast.success(`Memanggil ${data.queue_number}${data.customer_name ? ` · ${data.customer_name}` : ''}`);
+        toast.success(`Memanggil ${data.queue_number}${data.customer_name && data.customer_name !== 'Tamu' ? ` · ${data.customer_name}` : ''}`);
       } finally {
         setTimeout(() => {
           isCallingRef.current = false;
@@ -339,7 +339,7 @@ const QueueAdmin = () => {
       let phone = addPhone.trim().replace(/[^0-9]/g, '');
       if (phone.startsWith('0')) phone = `62${phone.slice(1)}`;
 
-      const finalName = addName.trim() || 'Tamu';
+      const finalName = addName.trim();
       const { error } = await supabase.from('event_queues').insert({
         event_id: selectedEventId,
         queue_number: queueNumber,
@@ -527,7 +527,7 @@ const QueueAdmin = () => {
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                       <div className="min-w-0">
                         <p className="text-5xl sm:text-6xl font-bold font-mono tracking-tight num leading-none">{active.queue_number}</p>
-                        {active.customer_name ? (
+                        {active.customer_name && active.customer_name !== 'Tamu' ? (
                           <p className="text-base sm:text-lg font-medium mt-2 truncate">{active.customer_name}</p>
                         ) : null}
                         <p className="text-xs sm:text-sm text-[var(--admin-text-muted)] mt-0.5">
@@ -628,8 +628,12 @@ const QueueAdmin = () => {
                 {waiting[0] ? (
                   <div className="flex items-center justify-between gap-3 mb-4">
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{waiting[0].customer_name || 'Tamu antrian'}</p>
-                      <p className="text-sm text-[var(--admin-text-muted)] font-mono">{waiting[0].customer_phone || 'Tanpa nomor'}</p>
+                      {waiting[0].customer_name && waiting[0].customer_name !== 'Tamu' ? (
+                        <p className="font-medium truncate">{waiting[0].customer_name}</p>
+                      ) : (
+                        <p className="font-semibold text-sm text-[var(--admin-text-main)]">Antrian berikutnya</p>
+                      )}
+                      <p className="text-sm text-[var(--admin-text-muted)] font-mono">{waiting[0].customer_phone || ''}</p>
                     </div>
                     <p className="text-3xl font-bold font-mono num">{waiting[0].queue_number}</p>
                   </div>
@@ -687,13 +691,14 @@ const QueueAdmin = () => {
                     const meta = statusMeta(item.status);
                     return (
                       <li key={item.id} className="px-4 py-3 flex items-center gap-3 sm:gap-4">
-                        <span className="w-14 shrink-0 font-mono font-semibold num">{item.queue_number}</span>
+                        <span className="w-14 shrink-0 font-mono font-bold text-lg num">{item.queue_number}</span>
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium truncate">{item.customer_name || 'Tamu antrian'}</p>
+                          {item.customer_name && item.customer_name !== 'Tamu' ? (
+                            <p className="font-medium truncate">{item.customer_name}</p>
+                          ) : null}
                           <p className="text-sm text-[var(--admin-text-muted)] truncate">
                             <span className="sm:hidden font-semibold text-[var(--admin-text-main)]">{meta.label} · </span>
-                            <span className="font-mono">{item.customer_phone || '–'}</span>
-                            {' · '}
+                            {item.customer_phone ? <span className="font-mono">{item.customer_phone} · </span> : null}
                             {new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                             {!percentMode && item.no_voucher && ' · tanpa voucher'}
                             {item.prints > 0 && ` · +${item.prints} print`}
@@ -801,8 +806,8 @@ const QueueAdmin = () => {
       {nextChoiceOpen && active && (
         <Modal
           title={`${active.queue_number} belum diselesaikan`}
-          description={`${active.customer_name} masih berstatus ${statusMeta(active.status).label.toLowerCase()}. Apa yang terjadi dengan tamu ini sebelum memanggil berikutnya?`}
-          size="sm"
+          description={`${active.customer_name && active.customer_name !== 'Tamu' ? `${active.customer_name} ` : `Nomor ${active.queue_number} `}masih berstatus ${statusMeta(active.status).label.toLowerCase()}. Apa yang terjadi dengan antrian ini sebelum memanggil berikutnya?`}
+          size="md"
           onClose={() => {
             setNextChoiceOpen(false);
             isCallingRef.current = false;
@@ -866,7 +871,7 @@ const QueueAdmin = () => {
       {toDelete && (
         <Modal
           title="Hapus antrian?"
-          description={`${toDelete.queue_number} · ${toDelete.customer_name} akan dihapus permanen.`}
+          description={`${toDelete.queue_number}${toDelete.customer_name && toDelete.customer_name !== 'Tamu' ? ` · ${toDelete.customer_name}` : ''} akan dihapus permanen.`}
           size="sm"
           onClose={() => setToDelete(null)}
           footer={

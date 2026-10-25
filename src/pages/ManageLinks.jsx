@@ -22,10 +22,12 @@ const ManageLinks = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)]" data-theme={theme}>
+    <div className="min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)] relative overflow-hidden" data-theme={theme}>
+      {/* Cahaya latar identik halaman antrian */}
+      <div aria-hidden="true" className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[36rem] h-[36rem] rounded-full bg-[#D90429]/15 blur-[120px]" />
       <Toaster position="top-center" toastOptions={{ style: { background: '#222', color: '#fff' } }} />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-10">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-10 relative">
         <header className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 min-w-0">
             <a href={getAdminUrl()} className="ui-btn ui-btn-icon" aria-label="Kembali ke Admin"><FiArrowLeft size={16} /></a>

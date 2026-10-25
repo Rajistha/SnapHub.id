@@ -227,17 +227,17 @@ const QueueDisplay = () => {
           <div className="flex-1 flex flex-col items-center justify-center text-center my-auto py-1 min-h-0">
             {active ? (
               <>
-                <p className="font-extrabold font-mono leading-none tracking-tight num text-[clamp(4.2rem,min(16vw,17vh),11rem)] text-white drop-shadow-[0_4px_30px_rgba(255,255,255,0.15)]">
+                <p className="font-black font-mono leading-none tracking-tight num text-[clamp(6rem,min(24vw,25vh),16rem)] text-white drop-shadow-[0_8px_50px_rgba(255,255,255,0.25)]">
                   {active.queue_number}
                 </p>
-                {active.name ? (
-                  <p className="text-[clamp(1.15rem,3vh,2rem)] font-bold mt-1.5 sm:mt-3 text-zinc-100 truncate max-w-full">
+                {active.name && active.name.toLowerCase() !== 'tamu' ? (
+                  <p className="text-[clamp(1.15rem,3vh,2rem)] font-bold mt-2 sm:mt-4 text-zinc-100 truncate max-w-full">
                     {active.name}
                   </p>
                 ) : null}
-                <div className="mt-2.5 sm:mt-4">
+                <div className="mt-3 sm:mt-5">
                   <span
-                    className={`inline-flex items-center gap-2 sm:gap-2.5 rounded-full px-5 sm:px-7 py-1.5 sm:py-2.5 text-[clamp(0.85rem,2vh,1.35rem)] font-extrabold tracking-wide uppercase shadow-lg ${
+                    className={`inline-flex items-center gap-2 sm:gap-2.5 rounded-full px-5 sm:px-7 py-2 sm:py-3 text-[clamp(0.9rem,2.2vh,1.4rem)] font-extrabold tracking-wide uppercase shadow-lg ${
                       active.status === 'serving'
                         ? 'bg-emerald-400 text-black shadow-emerald-400/20'
                         : heading
@@ -284,14 +284,11 @@ const QueueDisplay = () => {
                     key={item.id}
                     className="flex items-center justify-between gap-3 rounded-xl bg-white/5 hover:bg-white/[0.07] px-3.5 sm:px-4 py-2 sm:py-2.5 border border-white/5 transition-colors shrink-0"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-zinc-300">
-                        {idx + 1}
-                      </span>
-                      {item.name ? (
-                        <span className="text-sm sm:text-base font-semibold truncate text-zinc-200">{item.name}</span>
+                    <div className="min-w-0">
+                      {item.name && item.name.toLowerCase() !== 'tamu' ? (
+                        <span className="text-sm sm:text-base font-semibold truncate text-zinc-200 block">{item.name}</span>
                       ) : (
-                        <span className="text-xs sm:text-sm font-medium uppercase tracking-wider text-zinc-400">Antrian #{idx + 1}</span>
+                        <span className="text-xs sm:text-sm font-medium tracking-wide text-zinc-400 block">Urutan ke-{idx + 1}</span>
                       )}
                     </div>
                     <span className="text-lg sm:text-2xl font-black font-mono tracking-tight num text-rose-200">

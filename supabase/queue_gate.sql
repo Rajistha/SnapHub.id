@@ -207,10 +207,15 @@ drop function if exists public.take_queue_ticket(uuid);
 drop function if exists public.take_queue_ticket(text, text, text);
 drop function if exists public.take_queue_ticket(text, text);
 
--- Nama tamu bersifat opsional (default 'Tamu'), tiket tetap terbit secara 1-tap instan
-alter table public.event_queues alter column customer_name set default 'Tamu';
+-- Hapus batasan panjang nama agar nama kosong '' diizinkan (nomor antrian tanpa nama)
+alter table public.event_queues drop constraint if exists event_queues_len_chk;
+alter table public.event_queues add constraint event_queues_len_chk
+  check (char_length(customer_name) <= 40 and char_length(customer_phone) <= 20) not valid;
 
-create or replace function public.take_queue_ticket(p_session uuid, p_name text default 'Tamu')
+-- Nama tamu default kosong '', tiket terbit secara 1-tap instan tanpa nama
+alter table public.event_queues alter column customer_name set default '';
+
+create or replace function public.take_queue_ticket(p_session uuid, p_name text default '')
 returns jsonb
 language plpgsql
 security definer
@@ -222,6 +227,8 @@ declare
   v_next int;
   v_row public.event_queues%rowtype;
 begin
+  if p_session is null then raise exception 'Sesi tidak valid'; end if;
+
   select * into v_entry from public.queue_entries
   where session = p_session and claimed_at is not null
   for update;
@@ -245,8 +252,6 @@ begin
 
   select coalesce(max(seq_number), 0) + 1 into v_next from public.event_queues where event_id = v_entry.event_id;
 
-  if length(v_name) = 0 then v_name := 'Tamu'; end if;
-
   insert into public.event_queues (event_id, queue_number, seq_number, customer_name, customer_phone, status)
   values (v_entry.event_id, 'A-' || lpad(v_next::text, 2, '0'), v_next, v_name, '', 'waiting')
   returning * into v_row;
@@ -259,4 +264,18 @@ begin
     'state', public.queue_state_for(v_entry.event_id, v_row.id));
 end $$;
 
+-- Overload agar bisa dipanggil dengan 1 argumen (uuid) maupun 2 argumen (uuid, text)
+create or replace function public.take_queue_ticket(p_session uuid)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select public.take_queue_ticket(p_session, '');
+$$;
+
 grant execute on function public.take_queue_ticket(uuid, text) to anon, authenticated;
+grant execute on function public.take_queue_ticket(uuid) to anon, authenticated;
+
+-- Bersihkan data sebelumnya yang sempat otomatis terisi 'Tamu'
+update public.event_queues set customer_name = '' where customer_name = 'Tamu';

@@ -69,10 +69,10 @@ const LinkCard = ({ item }) => {
       target={newTab ? '_blank' : '_self'}
       rel="noopener noreferrer"
       onClick={() => trackClick(item.id)}
-      className={`group flex items-center gap-3.5 rounded-2xl p-3.5 min-h-[64px] border transition-colors ${
+      className={`group flex items-center gap-3.5 rounded-2xl p-3.5 min-h-[64px] border transition-all duration-200 active:scale-[0.99] ${
         featured
           ? 'bg-white text-zinc-950 border-white hover:bg-zinc-200'
-          : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] hover:border-white/20'
+          : 'bg-gradient-to-b from-[#1b1b1f] to-[#121214] border-white/10 hover:border-white/20 hover:from-[#222227] hover:to-[#17171a] shadow-[0_8px_30px_rgba(0,0,0,0.35)]'
       }`}
     >
       <span className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center overflow-hidden ${featured ? 'bg-zinc-950/5' : 'bg-white/[0.06]'}`}>
@@ -189,8 +189,9 @@ const Linktree = () => {
   const headerBtn = 'inline-flex items-center gap-1.5 min-h-10 px-3.5 rounded-full text-sm font-medium text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/10 border border-white/10 transition-colors';
 
   return (
-    <div data-theme="dark" className="min-h-screen bg-[#0b0b0c] text-zinc-100 flex flex-col relative">
-      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-72 pointer-events-none" style={{ background: 'radial-gradient(60% 100% at 50% 0%, rgba(217,4,41,0.14), transparent)' }} />
+    <div data-theme="dark" className="min-h-screen bg-[#0b0b0c] text-zinc-100 flex flex-col relative overflow-hidden">
+      {/* Cahaya latar identik halaman antrian */}
+      <div aria-hidden="true" className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] sm:w-[40rem] sm:h-[40rem] rounded-full bg-[#D90429]/25 blur-[110px]" />
 
       <header className="w-full max-w-md mx-auto px-5 pt-5 flex items-center justify-end gap-2 relative">
         <button onClick={() => setQrOpen(true)} className={headerBtn} aria-label="Tampilkan QR code"><FiGrid size={15} /> QR</button>
@@ -282,7 +283,7 @@ const Linktree = () => {
         </div>
 
         {concierge.show !== false && (
-          <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center justify-between gap-3">
+          <section className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-b from-[#1b1b1f] to-[#121214] p-5 flex items-center justify-between gap-3 shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
             <div className="min-w-0">
               <h2 className="text-[15px] font-semibold">{concierge.title || 'Konsultasi & reservasi acara'}</h2>
               {concierge.subtitle && <p className="text-sm text-zinc-400 mt-0.5 leading-snug">{concierge.subtitle}</p>}

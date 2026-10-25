@@ -270,7 +270,7 @@ export const announceQueue = (queueNumber, name) => {
     announceTimer = null;
   }
   playChime(1);
-  const who = name ? `${name}, ` : '';
+  const who = name && name.toLowerCase() !== 'tamu' ? `${name}, ` : '';
   const text = `Nomor antrian ${spokenNumber(queueNumber)}. ${who}silakan menuju photobooth.`;
   announceTimer = setTimeout(() => {
     speak(text, { repeat: 2 });

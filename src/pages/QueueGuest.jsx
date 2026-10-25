@@ -58,6 +58,31 @@ const writeCachedState = (gate, data) => {
 // berjalan dua kali (mode dev) tidak mengklaim dua kali dan menganggap link sudah terpakai.
 const claims = new Map();
 const claimGate = (gate) => {
+  if (!gate) return Promise.resolve({ session: null, state: null, error: 'No gate' });
+
+  // Gunakan preload request dari <head> index.html bila tersedia (sudah berjalan paralel sejak HTML pertama dimuat)
+  if (typeof window !== 'undefined' && window.__queuePreload && window.__queuePreload.gate === gate) {
+    const pre = window.__queuePreload;
+    window.__queuePreload = null;
+    const prePromise = pre.promise
+      .then((data) => {
+        if (pre.session) {
+          return { session: pre.session, state: data, error: null };
+        }
+        return { session: data?.session || null, state: data?.state || null, error: null };
+      })
+      .catch((err) => {
+        console.warn('Preload queue error, retrying via rpc:', err);
+        return supabase.rpc('queue_claim_gate', { p_gate: gate }).then(({ data, error }) => ({
+          session: data?.session || null,
+          state: data?.state || null,
+          error,
+        }));
+      });
+    claims.set(gate, prePromise);
+    return prePromise;
+  }
+
   if (!claims.has(gate)) {
     claims.set(
       gate,
@@ -91,7 +116,7 @@ const QueueGuest = () => {
 
   const [session, setSession] = useState(() => readSession(gate));
   const [state, setState] = useState(() => readCachedState(gate));
-  const [status, setStatus] = useState(() => (readCachedState(gate) ? 'ready' : 'loading'));
+  const [status, setStatus] = useState('ready');
   const [usedReason, setUsedReason] = useState('used'); // used | left
   const [submitting, setSubmitting] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
@@ -101,50 +126,7 @@ const QueueGuest = () => {
   const inFlightRef = useRef(false);
   const releaseTicketRef = useRef();
 
-  // Konsumsi request awal dari <head> index.html yang berjalan paralel dengan unduhan JS/CSS
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const preload = window.__queuePreload;
-    if (!preload || preload.gate !== gate) return undefined;
-    window.__queuePreload = null;
-
-    let alive = true;
-    preload.promise
-      .then(async (data) => {
-        if (!alive || !data) return;
-        if (preload.session) {
-          setState(data);
-          writeCachedState(gate, data);
-          setStatus('ready');
-        } else if (data.session) {
-          writeSession(gate, data.session);
-          setSession(data.session);
-          if (data.state) {
-            setState(data.state);
-            writeCachedState(gate, data.state);
-            setStatus('ready');
-          } else {
-            // DB lama: fetch state seketika tanpa menunggu timer polling
-            const { data: st } = await supabase.rpc('get_entry_state', { p_session: data.session });
-            if (!alive) return;
-            if (st) {
-              setState(st);
-              writeCachedState(gate, st);
-            }
-            setStatus('ready');
-          }
-        }
-      })
-      .catch((err) => {
-        console.warn('Preload queue error:', err);
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [gate]);
-
-  // Belum punya sesi: klaim link QR ini (hanya berhasil untuk tamu pertama yang membukanya).
+  // Klaim sesi instan dari scan QR (langsung mengonsumsi preload fetch dari index.html bila ada)
   useEffect(() => {
     if (session) return undefined;
     if (!gate) {
@@ -167,7 +149,6 @@ const QueueGuest = () => {
       if (initialState) {
         setState(initialState);
         writeCachedState(gate, initialState);
-        setStatus('ready');
       } else {
         const { data: st } = await supabase.rpc('get_entry_state', { p_session: claimed });
         if (!alive) return;
@@ -175,7 +156,6 @@ const QueueGuest = () => {
           setState(st);
           writeCachedState(gate, st);
         }
-        setStatus('ready');
       }
     });
     return () => {
@@ -332,7 +312,7 @@ const QueueGuest = () => {
 
       const { data, error } = await supabase.rpc('take_queue_ticket', {
         p_session: currentSession,
-        p_name: 'Tamu',
+        p_name: '',
       });
 
       if (error || !data) {
@@ -405,14 +385,6 @@ const QueueGuest = () => {
       toast.error('Gagal memutar audio');
     }
   };
-
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0b0b0c]">
-        <div className="w-8 h-8 border-[3px] border-[#D90429] border-t-transparent rounded-full animate-spin" role="status" aria-label="Memuat" />
-      </div>
-    );
-  }
 
   if (status === 'used' || status === 'error') {
     const content =
