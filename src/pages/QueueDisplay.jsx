@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import { useParams } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { FiMaximize2, FiMinimize2, FiVolume2, FiVolumeX } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
 import usePolling from '../lib/usePolling';
@@ -92,6 +93,20 @@ const QueueDisplay = () => {
 
   const guestUrl = `${queueBaseUrl()}/${gate || slug || ''}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&margin=8&data=${encodeURIComponent(guestUrl)}`;
+  const [qrDataUrl, setQrDataUrl] = useState('');
+
+  useEffect(() => {
+    if (!guestUrl) return;
+    let alive = true;
+    QRCode.toDataURL(guestUrl, { width: 480, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+      .then((url) => {
+        if (alive) setQrDataUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [guestUrl]);
 
   if (invalid) {
     return (
@@ -178,7 +193,7 @@ const QueueDisplay = () => {
 
           <section className="rounded-3xl border border-white/10 bg-[#111114] p-6 flex items-center gap-5">
             <div className="bg-white rounded-xl p-1.5 shrink-0">
-              <img src={qrUrl} alt="QR untuk mengambil nomor antrian" width="176" height="176" className="w-36 h-36 xl:w-44 xl:h-44" />
+              <img src={qrDataUrl || qrUrl} alt="QR untuk mengambil nomor antrian" width="176" height="176" className="w-36 h-36 xl:w-44 xl:h-44 rounded-lg" />
             </div>
             <div>
               <p className="text-lg font-semibold">Ambil nomor lewat HP</p>

@@ -44,13 +44,18 @@ const claimGate = (gate) => {
 
 const FINISHED = ['completed', 'skipped', 'cancelled'];
 
-const Stat = ({ label, value, sub, highlight }) => (
-  <div className={`rounded-2xl px-2 py-[clamp(0.4rem,1.1vh,0.7rem)] text-center border ${highlight ? 'bg-[#D90429]/15 border-[#D90429]/50' : 'bg-white/[0.05] border-white/10'}`}>
-    <dt className="text-[10px] uppercase tracking-wider text-zinc-400 leading-tight">{label}</dt>
-    <dd className="text-[clamp(1rem,2.8vh,1.3rem)] font-bold font-mono num leading-tight mt-1">{value}</dd>
-    {sub && <p className="text-[10px] text-zinc-400 leading-tight">{sub}</p>}
-  </div>
-);
+const Stat = ({ label, value, sub, highlight }) => {
+  const isWord = typeof value === 'string' && /[a-zA-Z]{3,}/.test(value);
+  return (
+    <div className={`rounded-2xl px-1.5 py-[clamp(0.4rem,1.1vh,0.7rem)] text-center border overflow-hidden flex flex-col justify-center min-w-0 ${highlight ? 'bg-[#D90429]/15 border-[#D90429]/50' : 'bg-white/[0.05] border-white/10'}`}>
+      <dt className="text-[10px] uppercase tracking-wider text-zinc-400 leading-tight truncate">{label}</dt>
+      <dd className={`font-bold leading-tight mt-1 truncate ${isWord ? 'text-[clamp(0.68rem,1.7vh,0.8rem)] font-sans uppercase font-extrabold tracking-tight text-rose-200' : 'text-[clamp(1rem,2.8vh,1.3rem)] font-mono num'}`}>
+        {value}
+      </dd>
+      {sub && <p className="text-[10px] text-zinc-400 leading-tight mt-0.5 truncate">{sub}</p>}
+    </div>
+  );
+};
 
 const QueueGuest = () => {
   const { slug } = useParams();
@@ -65,7 +70,9 @@ const QueueGuest = () => {
   const [submitting, setSubmitting] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [countdown, setCountdown] = useState(30);
   const lastAlertRef = useRef(null);
+  const releaseTicketRef = useRef();
 
   // Belum punya sesi: klaim link QR ini (hanya berhasil untuk tamu pertama yang membukanya).
   useEffect(() => {
@@ -146,6 +153,28 @@ const QueueGuest = () => {
 
   // Jaga layar tetap menyala selama menunggu agar bunyi & getar tidak terlewat.
   const liveTicket = !!ticket && !FINISHED.includes(ticket.status);
+  const finished = !!ticket && FINISHED.includes(ticket.status);
+
+  // Hitung mundur 30 detik saat selesai untuk menutup link otomatis agar hemat memori & beban server
+  useEffect(() => {
+    if (!finished) {
+      setCountdown(30);
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          releaseTicketRef.current?.(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [finished]);
+
   useEffect(() => {
     if (!liveTicket || !('wakeLock' in navigator)) return undefined;
     let lock = null;
@@ -166,16 +195,6 @@ const QueueGuest = () => {
       lock?.release?.().catch(() => {});
     };
   }, [liveTicket]);
-
-  // Halaman tamu harus muat satu layar penuh tanpa scroll.
-  useEffect(() => {
-    const prev = [document.documentElement.style.overflow, document.body.style.overflow];
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-    return () => {
-      [document.documentElement.style.overflow, document.body.style.overflow] = prev;
-    };
-  }, []);
 
   const validate = () => {
     const next = {};
@@ -227,6 +246,7 @@ const QueueGuest = () => {
     setUsedReason('left');
     setStatus('used');
   };
+  releaseTicketRef.current = releaseTicket;
 
   const testSound = () => {
     unlockAudio();
@@ -262,7 +282,6 @@ const QueueGuest = () => {
   }
 
   const active = board.find((q) => ACTIVE_STATUSES.includes(q.status));
-  const finished = ticket && FINISHED.includes(ticket.status);
 
   // Estimasi: tamu di depan (+ yang sedang dilayani) × rata-rata durasi layanan.
   const avg = state?.avg_service_seconds;
@@ -274,22 +293,22 @@ const QueueGuest = () => {
   const hideOnShort = '[@media(max-height:800px)_and_(max-width:1023px)]:hidden';
 
   return (
-    <div data-theme="dark" className="relative h-[100dvh] overflow-hidden overscroll-none bg-[#0b0b0c] text-white flex flex-col">
+    <div data-theme="dark" className="relative min-h-[100dvh] h-[100dvh] overflow-y-auto overscroll-contain bg-[#0b0b0c] text-white flex flex-col">
       <Toaster position="top-center" toastOptions={{ style: { background: '#1c1c1f', color: '#fff', border: '1px solid #2a2a2e' } }} />
 
       {/* Cahaya latar */}
       <div aria-hidden="true" className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] lg:left-1/3 lg:w-[44rem] lg:h-[44rem] rounded-full bg-[#D90429]/25 blur-[110px]" />
 
-      <header className="relative shrink-0 px-5 lg:px-12 pt-[max(0.9rem,env(safe-area-inset-top))] lg:pt-8 flex items-center justify-between">
+      <header className={`relative shrink-0 px-5 lg:px-12 pt-[max(0.9rem,env(safe-area-inset-top))] lg:pt-8 flex items-center justify-between ${ticket ? 'pb-1 sm:pb-3' : ''}`}>
         <img src="/icons.svg" alt="SnapHub" className="h-6 lg:h-8 w-auto" />
         <button onClick={testSound} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/10" aria-label="Tes suara dan getar">
           <FiVolume2 size={13} /> Tes suara
         </button>
       </header>
 
-      <div className="relative flex-1 min-h-0 w-full max-w-6xl mx-auto flex flex-col justify-center gap-5 pb-[max(4.5rem,env(safe-area-inset-bottom))] lg:pb-0 lg:flex-row lg:items-center lg:justify-center lg:gap-20 lg:px-12">
+      <div className={`relative flex-1 min-h-0 w-full max-w-6xl mx-auto flex flex-col justify-center gap-5 py-4 pb-[max(3rem,env(safe-area-inset-bottom))] lg:py-0 lg:flex-row lg:items-center lg:justify-center lg:gap-20 lg:px-12 ${ticket ? 'mt-4 sm:mt-8 pt-3 sm:pt-6' : ''}`}>
       {/* ── Hero: nama acara + status ── */}
-      <section className="relative flex-none lg:flex-1 min-h-0 flex flex-col items-center justify-center text-center px-5 lg:px-0 lg:items-start lg:text-left lg:justify-center gap-[clamp(0.4rem,1.5vh,1rem)] lg:gap-6" aria-live="polite">
+      <section className={`relative flex-none lg:flex-1 min-h-0 flex flex-col items-center justify-center text-center px-5 lg:px-0 lg:items-start lg:text-left lg:justify-center gap-[clamp(0.4rem,1.5vh,1rem)] lg:gap-6 ${ticket ? 'mt-2 sm:mt-4' : ''}`} aria-live="polite">
         <span className="inline-flex items-center gap-2 rounded-full border border-[#D90429]/40 bg-[#D90429]/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200">
           <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-rose-400" /></span>
           Antrian photobooth
@@ -309,7 +328,7 @@ const QueueGuest = () => {
         ) : (
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-            className={`w-full max-w-sm lg:max-w-md rounded-3xl border bg-white/[0.04] backdrop-blur px-5 py-[clamp(0.8rem,2.2vh,1.4rem)] lg:py-8 lg:text-center ${myTurn ? 'border-emerald-400/70 shadow-[0_0_40px_rgba(52,211,153,0.2)]' : 'border-white/10'}`}
+            className={`w-full max-w-sm lg:max-w-md rounded-3xl border bg-white/[0.04] backdrop-blur px-5 py-[clamp(0.8rem,2.2vh,1.4rem)] lg:py-8 lg:text-center mt-2 sm:mt-4 ${myTurn ? 'border-emerald-400/70 shadow-[0_0_40px_rgba(52,211,153,0.2)]' : 'border-white/10'}`}
           >
             <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">Nomor antrian Anda</p>
             <p className="font-extrabold font-mono tracking-tight leading-none my-[clamp(0.15rem,0.8vh,0.5rem)] num" style={{ fontSize: 'clamp(3.4rem, 13vh, 6rem)' }}>{ticket.queue_number}</p>
@@ -338,7 +357,7 @@ const QueueGuest = () => {
       </section>
 
       {/* ── Kartu aksi (form / info tiket) ── */}
-      <div className="relative shrink-0 px-4 lg:px-0 lg:w-[27rem]">
+      <div className={`relative shrink-0 px-4 lg:px-0 lg:w-[27rem] ${ticket ? 'mt-1 sm:mt-3 lg:mt-0' : ''}`}>
         {!ticket ? (
           <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>
             <h2 className="text-[clamp(1.05rem,2.8vh,1.3rem)] font-bold">Ambil nomor antrian</h2>
@@ -386,7 +405,14 @@ const QueueGuest = () => {
 
             <div className="mt-[clamp(0.5rem,1.4vh,0.9rem)] flex justify-center">
               {finished ? (
-                <button onClick={() => releaseTicket(false)} className="ui-btn ui-btn-primary ui-btn-lg w-full">Selesai</button>
+                <div className="w-full flex flex-col items-center gap-2">
+                  <button onClick={() => releaseTicket(false)} className="ui-btn ui-btn-primary ui-btn-lg w-full shadow-lg shadow-[#D90429]/30">
+                    Selesai {countdown > 0 ? `(${countdown}s)` : ''}
+                  </button>
+                  <p className="text-[11px] text-zinc-400 text-center">
+                    Halaman ditutup otomatis dalam <span className="font-mono font-semibold text-white num">{countdown}</span> detik
+                  </p>
+                </div>
               ) : ticket.status === 'waiting' ? (
                 <button onClick={() => setLeaveOpen(true)} className="ui-btn ui-btn-sm ui-btn-ghost text-zinc-400">
                   <FiRotateCcw size={14} /> Batalkan nomor
@@ -395,7 +421,7 @@ const QueueGuest = () => {
             </div>
           </motion.section>
         )}
-        <p className="mt-2 text-center text-[11px] text-zinc-600">SnapHub.id</p>
+        <p className="mt-3 text-center text-[11px] text-zinc-500 font-medium tracking-wide">Powered by SnapHub.id</p>
       </div>
       </div>
 

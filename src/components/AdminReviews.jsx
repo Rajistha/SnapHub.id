@@ -257,7 +257,7 @@ const AdminReviews = () => {
                 </div>
                 
                 {formData.event_type === 'Lainnya' && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                  <div className="animate-fade-in">
                     <input
                       type="text"
                       value={customEventType}
@@ -266,7 +266,7 @@ const AdminReviews = () => {
                       placeholder="Masukkan jenis acara..."
                       required
                     />
-                  </motion.div>
+                  </div>
                 )}
 
                 <div>
