@@ -63,6 +63,21 @@ export const queueQrUrl = (event) => {
   return `${queueGuestUrl(event)}/qr`;
 };
 
+export const getAppBaseUrl = () => {
+  if (typeof window === 'undefined') return 'https://app.snaphub.my.id';
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return window.location.origin;
+  }
+  return 'https://app.snaphub.my.id';
+};
+
+export const queueCrewUrl = (event) => {
+  if (!event?.queue_crew_token) return '';
+  const slug = `${slugify(event.name)}-${event.queue_crew_token}`;
+  return `${getAppBaseUrl()}/queue/crew/${slug}`;
+};
+
 // Token selalu bagian setelah tanda hubung terakhir pada slug "nama-event-token".
 export const tokenFromSlug = (slug) => (slug ? slug.split('-').pop() : '');
 

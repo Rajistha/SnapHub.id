@@ -12,7 +12,7 @@ import { playChime, unlockAudio } from '../lib/chime';
 import { isActive, statusMeta, toWaNumber } from '../lib/queueStatus';
 import { formatRupiah } from '../lib/pricelistDefaults';
 import {
-  MONTHS, daysUntil, formatDate, getAdminUrl, newToken, queueDisplayUrl, queueGuestUrl, queueQrUrl, todayString,
+  MONTHS, daysUntil, formatDate, getAdminUrl, newToken, queueCrewUrl, queueDisplayUrl, queueGuestUrl, queueQrUrl, todayString,
 } from '../lib/appUrls';
 import AdminLogin from '../components/ui/AdminLogin';
 import Modal from '../components/ui/Modal';
@@ -58,19 +58,19 @@ const QueueAdmin = () => {
     setLoadingEvents(true);
     let { data, error } = await supabase
       .from('financial_events')
-      .select('id,name,date,queue_token,voucher_price,no_voucher_price,print_price,pricing_mode,session_price')
+      .select('id,name,date,queue_token,queue_crew_token,voucher_price,no_voucher_price,print_price,pricing_mode,session_price')
       .order('date', { ascending: false });
     if (error) {
       ({ data, error } = await supabase
         .from('financial_events')
-        .select('id,name,date,queue_token,voucher_price,no_voucher_price,print_price')
+        .select('id,name,date,queue_token,queue_crew_token,voucher_price,no_voucher_price,print_price')
         .order('date', { ascending: false }));
     }
     if (error) {
       // Kolom tarif belum ada (event_pricing.sql belum dijalankan): tetap tampilkan event, tarif memakai bawaan.
       ({ data, error } = await supabase
         .from('financial_events')
-        .select('id,name,date,queue_token')
+        .select('id,name,date,queue_token,queue_crew_token')
         .order('date', { ascending: false }));
     }
     if (error) toast.error('Gagal mengambil daftar event');
@@ -406,6 +406,31 @@ const QueueAdmin = () => {
   const guestUrl = queueGuestUrl(selectedEvent);
   const displayUrl = queueDisplayUrl(selectedEvent);
   const qrPageUrl = queueQrUrl(selectedEvent);
+  const crewUrl = queueCrewUrl(selectedEvent);
+
+  const enableCrewLink = async () => {
+    if (!selectedEvent) return;
+    const token = newToken();
+    const { error } = await supabase.from('financial_events').update({ queue_crew_token: token }).eq('id', selectedEvent.id);
+    if (error) {
+      toast.error('Gagal membuat link crew: ' + (error.message || 'Error'));
+      return;
+    }
+    patchEvent(selectedEvent.id, { queue_crew_token: token });
+    const updated = { ...selectedEvent, queue_crew_token: token };
+    copy(queueCrewUrl(updated), 'Link kru antrian disalin! Kirim ke WA kru booth.');
+  };
+
+  const disableCrewLink = async () => {
+    if (!selectedEvent) return;
+    const { error } = await supabase.from('financial_events').update({ queue_crew_token: null }).eq('id', selectedEvent.id);
+    if (error) {
+      toast.error('Gagal mencabut link crew');
+      return;
+    }
+    patchEvent(selectedEvent.id, { queue_crew_token: null });
+    toast.success('Link kru dinonaktifkan. Akses lama langsung dicabut.');
+  };
 
   const themeToggle = (
     <button onClick={toggleTheme} className="ui-btn ui-btn-icon" aria-label={theme === 'dark' ? 'Ganti ke tema terang' : 'Ganti ke tema gelap'}>
@@ -730,7 +755,74 @@ const QueueAdmin = () => {
           }
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* ── Link Khusus Kru (Tanpa Login) ── */}
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-sm font-bold text-emerald-400">Link Khusus Kru (Tanpa Login)</span>
+                </div>
+                {selectedEvent.queue_crew_token && (
+                  <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                    Aktif
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[var(--admin-text-muted)] leading-relaxed">
+                Kru booth dapat memanggil antrian, mengatur cetak, dan menambah tamu manual langsung dari HP mereka di domain <span className="font-mono text-emerald-300 font-semibold">app.snaphub.my.id</span> tanpa perlu login akun admin.
+              </p>
+
+              {selectedEvent.queue_crew_token ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] pl-3 pr-1 py-1 border border-[var(--admin-border)]">
+                    <span className="flex-1 min-w-0 truncate text-xs font-mono text-[var(--admin-text-muted)]">
+                      {crewUrl}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copy(crewUrl, 'Link kru disalin! Siap dikirim ke WA kru.')}
+                      className="ui-btn ui-btn-sm shrink-0"
+                    >
+                      <FiCopy size={13} /> Salin
+                    </button>
+                    <a
+                      href={crewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ui-btn ui-btn-sm shrink-0"
+                    >
+                      <FiExternalLink size={13} /> Buka
+                    </a>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={enableCrewLink}
+                      className="text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] underline underline-offset-2"
+                    >
+                      Buat ulang link baru
+                    </button>
+                    <button
+                      type="button"
+                      onClick={disableCrewLink}
+                      className="text-xs text-rose-400 hover:text-rose-300 underline underline-offset-2"
+                    >
+                      Nonaktifkan link kru
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={enableCrewLink}
+                  className="ui-btn ui-btn-primary w-full py-2.5 text-xs font-bold flex items-center justify-center gap-2"
+                >
+                  <FiPlus size={15} /> Aktifkan Link Kru Antrian
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="ui-card p-4 hover:border-white/20 transition-all flex flex-col items-center text-center gap-2 group">
                 <FiExternalLink className="text-[var(--admin-accent)] group-hover:scale-110 transition-transform" size={20} />
                 <span className="text-sm font-semibold">Buka Layar TV</span>

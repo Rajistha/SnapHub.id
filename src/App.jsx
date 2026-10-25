@@ -14,6 +14,7 @@ const QueueDisplay = lazy(() => import('./pages/QueueDisplay'));
 const ManageShortLinks = lazy(() => import('./pages/ManageShortLinks'));
 const ShortRedirect = lazy(() => import('./pages/ShortRedirect'));
 const QueueQr = lazy(() => import('./pages/QueueQr'));
+const QueueCrew = lazy(() => import('./pages/QueueCrew'));
 const QueueAdmin = lazy(() => import('./pages/QueueAdmin'));
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -132,6 +133,8 @@ function App() {
         ) : isQueueSubdomain ? (
           /* 1. Subdomain queue.snaphub.my.id: tiket tamu & TV display booth */
           <>
+            <Route path="/crew/:slug" element={<QueueCrew />} />
+            <Route path="/:slug/crew" element={<QueueCrew />} />
             <Route path="/:slug/qr" element={<QueueQr />} />
             <Route path="/:slug/display" element={<QueueDisplay />} />
             <Route path="/display" element={<QueueDisplay />} />
@@ -156,6 +159,8 @@ function App() {
         ) : isAppSubdomain ? (
           /* 4. Subdomain app.snaphub.my.id: Aplikasi internal */
           <>
+            <Route path="/queue/crew/:slug" element={<QueueCrew />} />
+            <Route path="/crew/queue/:slug" element={<QueueCrew />} />
             <Route path="/queue" element={<QueueAdmin />} />
             <Route path="/short" element={<ManageShortLinks />} />
             <Route path="/links" element={<ManageLinks />} />
@@ -194,6 +199,9 @@ function App() {
             <Route path="/location" element={<Navigate to="/#maps" replace />} />
             <Route path="/contact" element={<Navigate to="/#contact" replace />} />
 
+            <Route path="/queue/crew/:slug" element={<QueueCrew />} />
+            <Route path="/queue/:slug/crew" element={<QueueCrew />} />
+            <Route path="/crew/queue/:slug" element={<QueueCrew />} />
             <Route path="/queue/:slug/qr" element={<QueueQr />} />
             <Route path="/queue/:slug/display" element={<QueueDisplay />} />
             <Route path="/queue/:slug" element={<QueueGuest />} />
