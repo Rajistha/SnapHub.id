@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { FiTrash2, FiUpload, FiImage, FiPlus, FiX, FiEdit2 } from 'react-icons/fi';
+import compressImage from '../lib/compressImage';
+
+const MAX_INPUT_BYTES = 20 * 1024 * 1024; // batas file asli sebelum dikompres
 
 const AdminGallery = () => {
   // Tailwind Safelist: col-span-1 row-span-1 col-span-2 row-span-2
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [storageUsed, setStorageUsed] = useState(0);
-  const MAX_STORAGE_MB = 50;
-  const MAX_STORAGE_BYTES = MAX_STORAGE_MB * 1024 * 1024;
+  const [compressing, setCompressing] = useState(false);
   const fileInputRef = useRef(null);
 
   // Form states
@@ -47,13 +48,6 @@ const AdminGallery = () => {
       if (error) throw error;
       console.log('Fetched images:', data);
       setImages(data || []);
-
-      // Hitung penggunaan storage
-      const { data: storageData, error: storageError } = await supabase.storage.from('gallery').list();
-      if (!storageError && storageData) {
-        const totalBytes = storageData.reduce((acc, file) => acc + (file.metadata?.size || 0), 0);
-        setStorageUsed(totalBytes);
-      }
     } catch (error) {
       toast.error('Gagal mengambil data galeri.');
       console.error(error);
@@ -62,16 +56,29 @@ const AdminGallery = () => {
     }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const selected = e.target.files[0];
-    if (selected) {
-      if (selected.size > 5 * 1024 * 1024) { // 5MB limit
-        toast.error('Ukuran file maksimal 5MB');
-        return;
-      }
-      setFile(selected);
-      const url = URL.createObjectURL(selected);
-      setPreviewUrl(url);
+    e.target.value = '';
+    if (!selected) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(selected.type)) {
+      toast.error('Format harus JPG, JPEG, PNG, atau WebP');
+      return;
+    }
+    if (selected.size > MAX_INPUT_BYTES) {
+      toast.error('Ukuran file maksimal 20 MB');
+      return;
+    }
+    setCompressing(true);
+    try {
+      const compressed = await compressImage(selected);
+      setFile(compressed);
+      setPreviewUrl(URL.createObjectURL(compressed));
+      const kb = (n) => (n / 1024).toFixed(0);
+      toast.success(`Dikompres: ${kb(selected.size)} KB → ${kb(compressed.size)} KB`);
+    } catch (error) {
+      toast.error('Gagal mengompres gambar: ' + (error.message || 'Unknown error'));
+    } finally {
+      setCompressing(false);
     }
   };
 
@@ -95,11 +102,6 @@ const AdminGallery = () => {
     e.preventDefault();
     if (!file) {
       toast.error('Pilih gambar terlebih dahulu!');
-      return;
-    }
-
-    if (storageUsed + file.size > MAX_STORAGE_BYTES) {
-      toast.error(`Gagal: Kapasitas penyimpanan penuh (Max ${MAX_STORAGE_MB}MB)`);
       return;
     }
 
@@ -223,27 +225,9 @@ const AdminGallery = () => {
   return (
     <div className="flex flex-col gap-8 w-full max-w-6xl">
       <div className="flex justify-between items-center bg-[var(--admin-surface)] p-6 rounded-[1.5rem] border border-[var(--admin-border)] shadow-[var(--admin-shadow)]">
-        <div>
-          <h2 className="text-2xl font-bold text-[var(--admin-accent)]">Manajemen Galeri</h2>
-          <p className="text-[var(--admin-text-muted)] mt-1">Kelola foto portofolio yang ditampilkan di halaman beranda.</p>
-          <div className="mt-4 w-full max-w-xs">
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-[var(--admin-text-muted)]">Kapasitas Penyimpanan</span>
-              <span className="text-[var(--admin-text-main)] font-semibold">
-                {(storageUsed / (1024 * 1024)).toFixed(2)} MB / {MAX_STORAGE_MB} MB
-              </span>
-            </div>
-            <div className="w-full bg-[var(--admin-input-bg)] rounded-full h-2">
-              <div
-                className={`h-2 rounded-full ${storageUsed > MAX_STORAGE_BYTES * 0.9 ? 'bg-red-500' : 'bg-[var(--admin-accent)]'}`}
-                style={{ width: `${Math.min((storageUsed / MAX_STORAGE_BYTES) * 100, 100)}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
+        <h2 className="text-2xl font-bold text-[var(--admin-accent)]">Manajemen Galeri</h2>
         <button
           onClick={openAddModal}
-          disabled={storageUsed >= MAX_STORAGE_BYTES}
           className="flex items-center gap-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent-hover)] text-[var(--admin-surface)] px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-[var(--admin-accent)]/20 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <FiPlus size={20} />
@@ -320,18 +304,23 @@ const AdminGallery = () => {
                   onClick={() => fileInputRef.current?.click()}
                   className="w-full aspect-video rounded-xl border-2 border-dashed border-[var(--admin-border)] flex flex-col items-center justify-center cursor-pointer hover:border-[var(--admin-accent)] transition-colors overflow-hidden bg-[var(--admin-input-bg)]"
                 >
-                  {previewUrl ? (
+                  {compressing ? (
+                    <div className="text-center p-4">
+                      <div className="w-8 h-8 border-4 border-[var(--admin-accent)] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      <span className="text-sm text-[var(--admin-text-muted)]">Mengompres gambar…</span>
+                    </div>
+                  ) : previewUrl ? (
                     <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
                     <div className="text-center p-4">
                       <FiUpload size={24} className="text-[var(--admin-text-muted)] mx-auto mb-2" />
                       <span className="text-sm text-[var(--admin-text-muted)]">Klik untuk pilih gambar</span> <br />
-                      <span className="text-sm text-[var(--admin-text-muted)]">Max. 1000kb</span><br />
-                      <span className="text-sm text-[var(--admin-text-muted)]">Format WebP</span>
+                      <span className="text-sm text-[var(--admin-text-muted)]">Max. 20 MB</span><br />
+                      <span className="text-sm text-[var(--admin-text-muted)]">JPG, JPEG, PNG, WebP (otomatis dikompres)</span>
                     </div>
                   )}
                 </div>
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/jpeg,image/png,image/webp" className="hidden" />
               </div>
 
               <div>
@@ -354,7 +343,7 @@ const AdminGallery = () => {
                 </div>
               </div>
 
-              <button type="submit" disabled={uploading} className="w-full bg-[var(--admin-accent)] hover:bg-[var(--admin-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--admin-surface)] font-bold py-3 rounded-xl transition-all shadow-lg shadow-[var(--admin-accent)]/20 text-sm mt-4 flex items-center justify-center gap-2">
+              <button type="submit" disabled={uploading || compressing} className="w-full bg-[var(--admin-accent)] hover:bg-[var(--admin-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--admin-surface)] font-bold py-3 rounded-xl transition-all shadow-lg shadow-[var(--admin-accent)]/20 text-sm mt-4 flex items-center justify-center gap-2">
                 {uploading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-[var(--admin-surface)] border-t-transparent rounded-full animate-spin" />
@@ -378,7 +367,7 @@ const AdminGallery = () => {
             </div>
             <h3 className="text-[var(--admin-accent)] font-bold text-xl mb-2 text-center">Hapus Foto?</h3>
             <p className="text-[var(--admin-text-muted)] text-sm mb-6 text-center leading-relaxed">
-              Tindakan ini tidak dapat dibatalkan dan foto akan hilang dari halaman utama.
+              Tindakan ini tidak dapat dibatalkan.
             </p>
             <div className="w-full aspect-video rounded-xl overflow-hidden mb-6 border border-[var(--admin-border)]">
               <img src={imageToDelete.url} alt="To delete" className="w-full h-full object-cover opacity-50" />

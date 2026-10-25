@@ -104,19 +104,22 @@ const AdminPricelist = () => {
     setUploadingPdf(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `pricelist_${Date.now()}.${fileExt}`;
+      const isPdf = fileExt.toLowerCase() === 'pdf';
+      // PDF memakai nama tetap agar bisa diakses lewat link rapi snaphub.my.id/pricelist.pdf
+      // (rewrite di vercel.json). Format lain tetap memakai nama unik + URL Supabase.
+      const fileName = isPdf ? 'pricelist.pdf' : `pricelist_${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('client-logos')
-        .upload(fileName, file, { upsert: true });
+        .from('pricelist')
+        .upload(fileName, file, { upsert: true, cacheControl: isPdf ? '60' : '3600' });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('client-logos')
+        .from('pricelist')
         .getPublicUrl(fileName);
 
-      setPdfUrl(publicUrl);
+      setPdfUrl(isPdf ? 'https://snaphub.my.id/pricelist.pdf' : publicUrl);
       setDirty(true);
       toast.success('File pricelist berhasil diunggah! Klik "Simpan Pricelist" untuk menerapkan ke website.');
     } catch (err) {
@@ -193,9 +196,7 @@ const AdminPricelist = () => {
             <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-main)] flex items-center gap-2">
               <FiFileText className="text-[#D90429]" size={16} /> File Download Pricelist (PDF / Dokumen)
             </h4>
-            <p className="text-xs text-[var(--admin-text-muted)] mt-1">
-              File yang diunduh pengunjung saat mengklik tombol <strong>"Download Pricelist"</strong> di landing page.
-            </p>
+
           </div>
           {pdfUrl && (
             <a
@@ -265,9 +266,7 @@ const AdminPricelist = () => {
               </button>
             )}
           </div>
-          <p className="text-[11px] text-[var(--admin-text-muted)] mt-1.5">
-            Bisa berupa file PDF yang diunggah, link Google Drive, Canva, atau file statis lokal (<code>/PriceGuideSnapHub.id.pdf</code>).
-          </p>
+
         </div>
       </div>
 
@@ -299,10 +298,7 @@ const AdminPricelist = () => {
             <input className={inputCls} value={pkg.tagline} onChange={(e) => updatePkg({ tagline: e.target.value })} />
           </div>
         </div>
-        <p className="text-xs text-[var(--admin-text-muted)]">
-          "Mulai dari" di website otomatis memakai harga terendah:{' '}
-          <span className="font-semibold text-[var(--admin-text-main)]">{formatRupiah(startFrom(pkg))}</span>
-        </p>
+
       </div>
 
       <div className="border border-[var(--admin-border)] rounded-2xl p-5">

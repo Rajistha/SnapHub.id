@@ -17,6 +17,10 @@
   ],
   "rewrites": [
     {
+      "source": "/pricelist.pdf",
+      "destination": "https://ppneejptnhksgsmncksd.supabase.co/storage/v1/object/public/pricelist/pricelist.pdf"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

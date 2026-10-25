@@ -199,9 +199,7 @@ const AdminLogos = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[var(--admin-surface)] p-6 rounded-2xl border border-[var(--admin-border)]">
         <div>
           <h2 className="text-xl font-bold text-[var(--admin-text-main)]">Kelola Logo Klien</h2>
-          <p className="text-sm text-[var(--admin-text-subtle)] mt-1">
-            Tambahkan atau hapus logo kustomer untuk ditampilkan di halaman utama.
-          </p>
+
         </div>
         <button
           onClick={() => openAddModal()}
@@ -387,7 +385,7 @@ const AdminLogos = () => {
               </div>
               <h3 className="text-xl font-bold text-[var(--admin-text-main)] mb-2">Hapus Logo?</h3>
               <p className="text-[var(--admin-text-subtle)] text-sm mb-6">
-                Apakah Anda yakin ingin menghapus logo <strong>{logoToDelete.client_name}</strong>? Tindakan ini tidak dapat dibatalkan.
+                Hapus logo <strong>{logoToDelete.client_name}</strong>? Tindakan ini tidak dapat dibatalkan.
               </p>
 
               <div className="flex justify-end space-x-3 pt-4">

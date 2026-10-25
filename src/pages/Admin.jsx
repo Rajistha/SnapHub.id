@@ -4,7 +4,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, 
   FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, 
-  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget, FiUsers, FiScissors 
+  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget, FiUsers, FiScissors, FiServer
 } from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
@@ -17,6 +17,7 @@ import AdminReviews from '../components/AdminReviews';
 import AdminLogos from '../components/AdminLogos';
 import AdminPricelist from '../components/AdminPricelist';
 import AdminLinks from '../components/AdminLinks';
+import AdminUsage from '../components/AdminUsage';
 
 const Admin = () => {
   const [session, setSession] = useState(null);
@@ -31,6 +32,7 @@ const Admin = () => {
   const [openSections, setOpenSections] = useState({
     content: true,
     finance: true,
+    system: true,
     app: true,
   });
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -63,8 +65,12 @@ const Admin = () => {
   else if (pathParts[1] === 'logos') activeTab = 'logos';
   else if (pathParts[1] === 'pricelist') activeTab = 'pricelist';
   else if (pathParts[1] === 'links') activeTab = 'links';
+  else if (pathParts[1] === 'events') activeTab = 'finance_events';
+  else if (pathParts[1] === 'operations' || pathParts[1] === 'operational') activeTab = 'finance_operational';
+  else if (pathParts[1] === 'recap') activeTab = 'finance_recap';
+  else if (pathParts[1] === 'target') activeTab = 'finance_target';
   else if (pathParts[1] === 'finance') {
-    if (pathParts[2] === 'operational') activeTab = 'finance_operational';
+    if (pathParts[2] === 'operational' || pathParts[2] === 'operations') activeTab = 'finance_operational';
     else if (pathParts[2] === 'recap') activeTab = 'finance_recap';
     else if (pathParts[2] === 'target') activeTab = 'finance_target';
     else activeTab = 'finance_events';
@@ -80,10 +86,10 @@ const Admin = () => {
     else if (tabId === 'logos') navigate(`${base}/logos`);
     else if (tabId === 'pricelist') navigate(`${base}/pricelist`);
     else if (tabId === 'links') navigate(`${base}/links`);
-    else if (tabId === 'finance_events') navigate(`${base}/finance/events`);
-    else if (tabId === 'finance_operational') navigate(`${base}/finance/operational`);
-    else if (tabId === 'finance_recap') navigate(`${base}/finance/recap`);
-    else if (tabId === 'finance_target') navigate(`${base}/finance/target`);
+    else if (tabId === 'finance_events') navigate(`${base}/events`);
+    else if (tabId === 'finance_operational') navigate(`${base}/operations`);
+    else if (tabId === 'finance_recap') navigate(`${base}/recap`);
+    else if (tabId === 'finance_target') navigate(`${base}/target`);
     else navigate(`${base}/${tabId}`);
   };
 
@@ -221,6 +227,13 @@ const Admin = () => {
       ]
     },
     {
+      id: 'system',
+      title: 'System',
+      items: [
+        { id: 'usage', label: 'Usage', icon: <FiServer size={18} /> },
+      ]
+    },
+    {
       id: 'app',
       title: 'Apps',
       items: [
@@ -294,9 +307,7 @@ const Admin = () => {
           <div className="absolute inset-0 bg-black/60" onClick={() => setIsLogoutModalOpen(false)}></div>
           <div className="relative bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in-up">
             <h3 className="text-xl font-bold text-[var(--admin-accent)] mb-2">Confirm Logout</h3>
-            <p className="text-[var(--admin-text-muted)] text-sm mb-6">
-              Are you sure you want to log out from the Admin session?
-            </p>
+
             <div className="flex gap-3">
               <button 
                 onClick={() => setIsLogoutModalOpen(false)}
@@ -493,7 +504,7 @@ const Admin = () => {
                 <h2 className="text-2xl font-bold text-[var(--admin-text-main)] font-heading">
                   {getActiveTabLabel()}
                 </h2>
-                <p className="text-[var(--admin-text-muted)] text-sm mt-1">Manage your business operations</p>
+
               </div>
             </div>
 
@@ -505,6 +516,7 @@ const Admin = () => {
             {activeTab === 'logos' && <AdminLogos />}
             {activeTab === 'pricelist' && <AdminPricelist />}
             {activeTab === 'links' && <AdminLinks />}
+            {activeTab === 'usage' && <AdminUsage />}
             {activeTab === 'finance_events' && <AdminFinance activeSubTab="events" />}
             {activeTab === 'finance_operational' && <AdminFinance activeSubTab="operational" />}
             {activeTab === 'finance_recap' && <AdminFinance activeSubTab="recap" />}

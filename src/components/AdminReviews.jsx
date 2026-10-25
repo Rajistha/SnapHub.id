@@ -157,7 +157,7 @@ const AdminReviews = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-[var(--admin-text-main)]">Customer Reviews</h2>
-          <p className="text-[var(--admin-text-subtle)] text-sm">Kelola testimoni dan ulasan dari klien</p>
+
         </div>
         <button
           onClick={() => handleOpenModal()}

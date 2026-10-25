@@ -302,7 +302,6 @@ const AdminSchedule = () => {
           </div>
 
           <div className="mt-4 pt-4 border-t border-[var(--admin-border)]">
-            <p className="text-xs text-[var(--admin-text-subtle)] italic">Jadwal yang tersimpan akan otomatis memblokir tanggal tersebut di halaman utama (*homepage*) agar klien tidak bisa memilihnya.</p>
           </div>
         </div>
       </div>

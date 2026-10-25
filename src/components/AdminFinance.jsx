@@ -21,6 +21,7 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
   const [operationalSortOrder, setOperationalSortOrder] = useState('dateDesc');
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [isEditingIncome, setIsEditingIncome] = useState(false);
+  const [incomeDraft, setIncomeDraft] = useState('');
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, type: '', id: null, title: '', message: '' });
   const [masterPage, setMasterPage] = useState(1);
 
@@ -44,6 +45,7 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
   const [newTransaction, setNewTransaction] = useState({ type: 'event_expense', description: '', amount: '', event_id: '' });
   const [newOperationalExpense, setNewOperationalExpense] = useState({ description: '', amount: '', date: format(new Date(), 'yyyy-MM-dd') });
   const [operationalExpenses, setOperationalExpenses] = useState([]);
+  const [isAddOpModalOpen, setIsAddOpModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -246,12 +248,31 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
       const val = getRawNumber(newIncome);
       const ev = events.find((e) => e.id === eventId);
       // Selisih terhadap total sesi foto disimpan sebagai penyesuaian, supaya tetap terjaga saat sesi bertambah
-      const adjustment = val - (ev ? sessionsTotal({ sessions: ev.sessions || [] }) : 0);
+      const photoBase = ev ? sessionsTotal(ev, {
+        voucherPrice: ev.voucher_price,
+        noVoucherPrice: ev.no_voucher_price,
+        printPrice: ev.print_price,
+      }) : 0;
+      const adjustment = val - photoBase;
       const { error } = await supabase.from('financial_events').update({ income: val, income_adjustment: adjustment }).eq('id', eventId);
       if (error) throw error;
       fetchData();
     } catch (error) {
       toast.error('Gagal memperbarui pemasukan');
+    }
+  };
+
+  const handleResetIncome = async (eventId, photoTotal) => {
+    try {
+      const { error } = await supabase
+        .from('financial_events')
+        .update({ income: photoTotal, income_adjustment: 0 })
+        .eq('id', eventId);
+      if (error) throw error;
+      toast.success('Pemasukan dikembalikan ke total otomatis sesi foto');
+      fetchData();
+    } catch (error) {
+      toast.error('Gagal mereset pemasukan');
     }
   };
 
@@ -397,7 +418,14 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
       const totalExpense = eventExpenses.reduce((sum, t) => sum + Number(t.amount), 0);
       const netProfit = Number(event.income) - totalExpense;
       const photoSessions = event.sessions || [];
-      const photoTotal = sessionsTotal({ sessions: photoSessions });
+      const effectiveVoucherPrice = (event.voucher_price && event.voucher_price >= 30000) ? event.voucher_price : 30000;
+      const effectiveNoVoucherPrice = (event.no_voucher_price && event.no_voucher_price >= 35000) ? event.no_voucher_price : 35000;
+      const effectivePrintPrice = event.print_price || 10000;
+      const photoTotal = sessionsTotal(event, {
+        voucherPrice: effectiveVoucherPrice,
+        noVoucherPrice: effectiveNoVoucherPrice,
+        printPrice: effectivePrintPrice,
+      });
       const incomeAdjustment = Number(event.income_adjustment || 0);
 
       return (
@@ -478,27 +506,32 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
                     <div>
                       <h5 className="text-[#64D194] text-sm font-semibold mb-1">Set Pemasukan Event</h5>
                       <p className="text-[var(--admin-text-muted)] text-xs">
-                        Total otomatis dari sesi foto: {formatIDR(photoTotal)}. Ubah angka ini untuk koreksi; selisihnya disimpan sebagai penyesuaian.
+                        Total otomatis dari sesi foto: {formatIDR(photoTotal)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[#64D194] text-sm font-medium">Rp</span>
                       <input
                         type="text"
-                        defaultValue={new Intl.NumberFormat('id-ID').format(event.income)}
-                        onBlur={(e) => {
-                          handleUpdateIncome(event.id, e.target.value);
-                          setIsEditingIncome(false);
+                        inputMode="numeric"
+                        value={incomeDraft}
+                        onChange={(e) => handleNumberInput(e.target.value, setIncomeDraft)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleUpdateIncome(event.id, incomeDraft);
+                            setIsEditingIncome(false);
+                          }
                         }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
-                        onChange={(e) => handleNumberInput(e.target.value, val => { e.target.value = val; })}
-                        className="bg-[var(--admin-surface)] border border-[#64D194]/50 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-[#64D194] w-36 text-[var(--admin-text-main)] transition-colors"
+                        className="bg-[var(--admin-surface)] border border-[#64D194]/50 rounded-lg px-3 py-2 text-right focus:outline-none focus:border-[#64D194] w-36 text-[var(--admin-text-main)] transition-colors font-bold tabular-nums"
                         placeholder="0"
                         autoFocus
                       />
                       <button
-                        onClick={(e) => e.currentTarget.previousElementSibling.blur()}
-                        className="bg-[#64D194] hover:bg-[#64D194]/80 text-[var(--admin-surface)] px-4 py-2 rounded-lg text-sm font-bold transition-colors inline-flex"
+                        onClick={() => {
+                          handleUpdateIncome(event.id, incomeDraft);
+                          setIsEditingIncome(false);
+                        }}
+                        className="bg-[#64D194] hover:bg-[#64D194]/80 text-[var(--admin-surface)] px-4 py-2 rounded-lg text-sm font-bold transition-colors inline-flex cursor-pointer"
                         title="Simpan Pemasukan"
                       >
                         Simpan
@@ -516,11 +549,24 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
                         )}
                       </p>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-[#64D194] text-lg font-bold">{formatIDR(event.income)}</span>
+                    <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+                      <span className="text-[#64D194] text-lg font-bold tabular-nums">{formatIDR(event.income)}</span>
+                      {incomeAdjustment !== 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleResetIncome(event.id, photoTotal)}
+                          className="bg-white/5 hover:bg-white/10 text-[var(--admin-text-muted)] hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border border-[var(--admin-border)] cursor-pointer"
+                          title="Kembalikan pemasukan ke total kotor sesi foto"
+                        >
+                          Reset ke Otomatis ({formatIDR(photoTotal)})
+                        </button>
+                      )}
                       <button
-                        onClick={() => setIsEditingIncome(true)}
-                        className="bg-[#64D194]/10 hover:bg-[#64D194] hover:text-[var(--admin-surface)] text-[#64D194] px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                        onClick={() => {
+                          setIncomeDraft(new Intl.NumberFormat('id-ID').format(event.income));
+                          setIsEditingIncome(true);
+                        }}
+                        className="bg-[#64D194]/10 hover:bg-[#64D194] hover:text-[var(--admin-surface)] text-[#64D194] px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer"
                       >
                         <FiEdit2 size={14} /> Edit
                       </button>
@@ -1175,7 +1221,7 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
               </button>
             </div>
           )}
-          <p className="text-[var(--admin-text-muted)] text-xs mt-3">Target ini adalah target akhir atau utama tanpa ada batasan waktu pencapaian.</p>
+
         </div>
 
         {/* Target Bulanan & Tabel Log */}
@@ -1312,28 +1358,14 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
 
     const totalOperational = filteredOperational.reduce((sum, t) => sum + Number(t.amount), 0);
 
+
     return (
       <div className="space-y-8 max-w-[1100px]">
-        {/* Form Tambah Pengeluaran */}
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-6 rounded-[1.5rem] shadow-[var(--admin-shadow)] animate-fade-in-up">
-          <h3 className="text-[var(--admin-accent)] font-semibold flex items-center gap-2 mb-4"><FiPlus /> Tambah Pengeluaran Operasional (Luar Event)</h3>
-          <form onSubmit={handleAddOperationalExpense} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input type="date" required value={newOperationalExpense.date} onChange={e => setNewOperationalExpense({ ...newOperationalExpense, date: e.target.value })} className="bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-[var(--admin-text-main)] focus:outline-none focus:border-[#E79EA7] [color-scheme:dark]" />
-            <input type="text" required placeholder="Deskripsi (Cth: Beli Kamera)" value={newOperationalExpense.description} onChange={e => setNewOperationalExpense({ ...newOperationalExpense, description: e.target.value })} className="md:col-span-2 bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-2.5 text-[var(--admin-text-main)] focus:outline-none focus:border-[#E79EA7]" />
-            <div className="relative w-full">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)] font-medium">Rp</span>
-              <input type="text" required placeholder="0" value={newOperationalExpense.amount} onChange={e => handleNumberInput(e.target.value, (val) => setNewOperationalExpense({ ...newOperationalExpense, amount: val }))} className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl pl-10 pr-4 py-2.5 text-[var(--admin-text-main)] font-bold focus:outline-none focus:border-[#E79EA7]" />
-            </div>
-            <button type="submit" className="md:col-span-4 bg-[#C9868F] hover:bg-[var(--admin-accent)] text-[var(--admin-surface)] font-bold rounded-xl px-4 py-2.5 transition-colors flex items-center justify-center gap-2 mt-2">
-              <FiCheck /> Simpan Pengeluaran
-            </button>
-          </form>
-        </div>
 
         {/* Tabel Daftar Pengeluaran */}
-        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-6 rounded-[1.5rem] shadow-[var(--admin-shadow)] animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <div className="bg-[var(--admin-surface)] border border-[var(--admin-border)] p-6 rounded-[1.5rem] shadow-[var(--admin-shadow)] animate-fade-in-up">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h3 className="text-[var(--admin-accent)] font-semibold flex items-center gap-2"><FiSearch /> Daftar Pengeluaran Operasional</h3>
+            <h3 className="text-[var(--admin-accent)] font-semibold flex items-center gap-2"><FiBox /> Pengeluaran Operasional</h3>
 
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
               <div className="relative flex-1 w-full sm:w-64">
@@ -1358,6 +1390,15 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
                 <option value="az">Deskripsi (A-Z)</option>
                 <option value="za">Deskripsi (Z-A)</option>
               </select>
+              <button
+                onClick={() => {
+                  setNewOperationalExpense({ description: '', amount: '', date: format(new Date(), 'yyyy-MM-dd') });
+                  setIsAddOpModalOpen(true);
+                }}
+                className="shrink-0 flex items-center gap-2 bg-[var(--admin-accent)] hover:brightness-110 text-[var(--admin-surface)] font-bold rounded-xl px-4 py-2 text-sm transition-all cursor-pointer"
+              >
+                <FiPlus size={16} /> Tambah
+              </button>
             </div>
           </div>
 
@@ -1419,6 +1460,104 @@ const AdminFinance = ({ activeSubTab = 'events' }) => {
       {activeSubTab === 'operational' && renderOperationalTab()}
       {activeSubTab === 'recap' && renderRecapTab()}
       {activeSubTab === 'target' && renderTargetTab()}
+
+      {/* Add Operational Expense Modal */}
+      {isAddOpModalOpen && (
+        <div className="fixed inset-0 lg:left-64 bg-black/75 z-[100] flex items-center justify-center p-4" onClick={() => setIsAddOpModalOpen(false)}>
+          <div
+            className="bg-[var(--admin-surface)] border border-[var(--admin-border)] rounded-3xl p-8 w-full max-w-md shadow-[0_0_40px_rgba(210,138,148,0.1)] animate-fade-in-up"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-[var(--admin-accent-bg)] flex items-center justify-center border border-[var(--admin-accent)]/20">
+                  <FiPlus size={20} className="text-[var(--admin-accent)]" />
+                </div>
+                <div>
+                  <h3 className="text-[var(--admin-text-main)] font-bold text-lg leading-tight">Tambah Pengeluaran</h3>
+                  <p className="text-[var(--admin-text-muted)] text-xs">Pengeluaran operasional luar event</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddOpModalOpen(false)}
+                className="text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors p-1 rounded-lg hover:bg-[var(--admin-hover-bg)]"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            {/* Form */}
+            <form
+              onSubmit={async (e) => {
+                await handleAddOperationalExpense(e);
+                setIsAddOpModalOpen(false);
+              }}
+              className="space-y-4"
+            >
+              {/* Tanggal */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wide mb-2">Tanggal</label>
+                <input
+                  type="date"
+                  required
+                  value={newOperationalExpense.date}
+                  onChange={e => setNewOperationalExpense({ ...newOperationalExpense, date: e.target.value })}
+                  className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-3 text-[var(--admin-text-main)] focus:outline-none focus:border-[#E79EA7] transition-colors [color-scheme:dark]"
+                />
+              </div>
+
+              {/* Deskripsi */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wide mb-2">Deskripsi</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="Cth: Beli Kamera, Domain Website..."
+                  value={newOperationalExpense.description}
+                  onChange={e => setNewOperationalExpense({ ...newOperationalExpense, description: e.target.value })}
+                  className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl px-4 py-3 text-[var(--admin-text-main)] focus:outline-none focus:border-[#E79EA7] transition-colors"
+                />
+              </div>
+
+              {/* Nominal */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase tracking-wide mb-2">Nominal</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)] font-medium text-sm">Rp</span>
+                  <input
+                    type="text"
+                    required
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={newOperationalExpense.amount}
+                    onChange={e => handleNumberInput(e.target.value, (val) => setNewOperationalExpense({ ...newOperationalExpense, amount: val }))}
+                    className="w-full bg-[var(--admin-input-bg)] border border-[var(--admin-border)] rounded-xl pl-12 pr-4 py-3 text-[var(--admin-text-main)] font-bold focus:outline-none focus:border-[#E79EA7] transition-colors tabular-nums"
+                  />
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOpModalOpen(false)}
+                  className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors border border-[var(--admin-border)]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[var(--admin-accent)] hover:brightness-110 text-[var(--admin-surface)] font-bold rounded-xl px-4 py-3 text-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <FiCheck size={16} /> Simpan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Delete Modal */}
       {deleteModal.isOpen && (

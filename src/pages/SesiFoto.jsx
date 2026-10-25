@@ -47,8 +47,21 @@ const liveUrl = (event) => {
 };
 
 const financeUrl = () => {
+  if (typeof window === 'undefined') return '/events';
   const host = window.location.hostname;
-  return host === 'localhost' || host === '127.0.0.1' ? '/admin/finance/events' : 'https://spanel.snaphub.my.id/finance/events';
+  return host === 'localhost' || host === '127.0.0.1' ? '/admin/events' : 'https://spanel.snaphub.my.id/events';
+};
+
+const formatThousand = (val) => {
+  if (val == null || val === '') return '';
+  const num = String(val).replace(/\D/g, '');
+  if (!num) return '';
+  return new Intl.NumberFormat('id-ID').format(num);
+};
+
+const parseThousand = (val) => {
+  if (val == null || val === '') return 0;
+  return parseInt(String(val).replace(/\./g, '').replace(/\D/g, ''), 10) || 0;
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -93,29 +106,43 @@ const SesiFoto = () => {
   // Per-Event MoU & Pricing State (Tiap event memiliki MoU terpisah)
   const getEventPricing = (eventOrId) => {
     if (!eventOrId) return { voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000 };
+    let vPrice = null;
+    let nvPrice = null;
+    let pPrice = null;
+
     if (typeof eventOrId === 'object') {
-      if (eventOrId.voucher_price != null) {
-        return {
-          voucherPrice: eventOrId.voucher_price ?? 30000,
-          noVoucherPrice: eventOrId.no_voucher_price ?? 35000,
-          printPrice: eventOrId.print_price ?? 10000,
-        };
+      vPrice = eventOrId.voucher_price;
+      nvPrice = eventOrId.no_voucher_price;
+      pPrice = eventOrId.print_price;
+    } else {
+      const ev = (eventsRef.current || []).find((e) => e.id === eventOrId);
+      if (ev) {
+        vPrice = ev.voucher_price;
+        nvPrice = ev.no_voucher_price;
+        pPrice = ev.print_price;
       }
-      return getEventPricing(eventOrId.id);
     }
-    const ev = (eventsRef.current || []).find((e) => e.id === eventOrId);
-    if (ev && ev.voucher_price != null) {
-      return {
-        voucherPrice: ev.voucher_price ?? 30000,
-        noVoucherPrice: ev.no_voucher_price ?? 35000,
-        printPrice: ev.print_price ?? 10000,
-      };
+
+    if (vPrice == null) {
+      try {
+        const eventId = typeof eventOrId === 'object' ? eventOrId.id : eventOrId;
+        const raw = localStorage.getItem(`snaphub_event_pricing_${eventId}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          vPrice = parsed.voucherPrice;
+          nvPrice = parsed.noVoucherPrice;
+          pPrice = parsed.printPrice;
+        }
+      } catch {}
     }
-    try {
-      const raw = localStorage.getItem(`snaphub_event_pricing_${eventOrId}`);
-      if (raw) return { voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000, ...JSON.parse(raw) };
-    } catch {}
-    return { voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000 };
+
+    // Pemasukan adalah tarif kotor (bruto) sebelum dikurangi sharing profit.
+    // Jika sebelumnya tersimpan < 30.000 karena salah potong sharing profit, pulihkan ke tarif kotor standar.
+    const finalVoucher = (vPrice != null && vPrice >= 30000) ? vPrice : 30000;
+    const finalNoVoucher = (nvPrice != null && nvPrice >= 35000) ? nvPrice : 35000;
+    const finalPrint = (pPrice != null && pPrice > 0) ? pPrice : 10000;
+
+    return { voucherPrice: finalVoucher, noVoucherPrice: finalNoVoucher, printPrice: finalPrint };
   };
 
   const [eventPricing, setEventPricing] = useState({ voucherPrice: 30000, noVoucherPrice: 35000, printPrice: 10000 });
@@ -152,21 +179,24 @@ const SesiFoto = () => {
     setDraftVoucherPrice(current.voucherPrice ?? 30000);
     setDraftNoVoucherPrice(current.noVoucherPrice ?? 35000);
     setDraftPrintPrice(current.printPrice ?? 10000);
-    setDraftSharePerVoucher(selectedEvent.share_per_voucher || 0);
+    setDraftSharePerVoucher(selectedEvent.share_per_voucher != null && selectedEvent.share_per_voucher !== 0 ? selectedEvent.share_per_voucher : 5000);
     setIsEventPriceModalOpen(true);
   };
 
   const handleSaveEventPriceModal = async (e) => {
     e.preventDefault();
     if (!selectedEvent) return;
-    const vPrice = Math.max(0, parseInt(draftVoucherPrice, 10) || 0);
-    const nvPrice = Math.max(0, parseInt(draftNoVoucherPrice, 10) || 0);
-    const pPrice = Math.max(0, parseInt(draftPrintPrice, 10) || 0);
-    const shareVal = Math.max(0, parseInt(draftSharePerVoucher, 10) || 0);
+    const vPrice = Math.max(0, parseInt(String(draftVoucherPrice).replace(/\./g, ''), 10) || 30000);
+    const nvPrice = Math.max(0, parseInt(String(draftNoVoucherPrice).replace(/\./g, ''), 10) || 35000);
+    const pPrice = Math.max(0, parseInt(String(draftPrintPrice).replace(/\./g, ''), 10) || 10000);
+    const shareVal = Math.max(0, parseInt(String(draftSharePerVoucher).replace(/\./g, ''), 10) || 0);
 
     const pricingObj = { voucherPrice: vPrice, noVoucherPrice: nvPrice, printPrice: pPrice };
     setEventPricing(pricingObj);
     localStorage.setItem(`snaphub_event_pricing_${selectedEvent.id}`, JSON.stringify(pricingObj));
+
+    // Hitung pemasukan kotor tanpa pengurangan sharing profit
+    const grossIncome = eventTotal(selectedEvent, pricingObj);
 
     // Simpan ke cloud settings bila admin sedang login
     supabase
@@ -178,22 +208,23 @@ const SesiFoto = () => {
       .then(() => {})
       .catch(() => {});
 
-    // Update kolom tabel financial_events jika sudah dimigrasi
+    // Update kolom tabel financial_events (pemasukan kotor, tanpa dipotong sharing)
     setShareDraft(String(shareVal));
     const fullPatch = {
       share_per_voucher: shareVal,
       voucher_price: vPrice,
       no_voucher_price: nvPrice,
-      print_price: pPrice
+      print_price: pPrice,
+      income: grossIncome,
+      income_adjustment: 0
     };
     const ok = await updateEvent(selectedEvent.id, fullPatch, null);
     if (!ok) {
-      // Fallback jika kolom voucher_price belum dibuat di Supabase
-      await updateEvent(selectedEvent.id, { share_per_voucher: shareVal }, 'Gagal menyimpan sharing profit event');
+      await updateEvent(selectedEvent.id, { share_per_voucher: shareVal, income: grossIncome, income_adjustment: 0 }, 'Gagal menyimpan sharing profit event');
     }
     syncSharing(selectedEvent.id);
 
-    toast.success(`Harga & Sharing untuk "${selectedEvent.name}" berhasil disimpan!`);
+    toast.success(`Pricing untuk "${selectedEvent.name}" berhasil disimpan!`);
     setIsEventPriceModalOpen(false);
   };
 
@@ -575,7 +606,7 @@ const SesiFoto = () => {
             )}
             <div className="min-w-0">
               <h2 className="text-xl font-bold text-[var(--admin-text-main)] font-heading leading-tight">Catat Sesi Foto</h2>
-              <p className="text-[var(--admin-text-muted)] text-xs mt-0.5">Catatan internal — tidak tampil di website</p>
+
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -716,9 +747,7 @@ const SesiFoto = () => {
                         Buka Keuangan →
                       </a>
                     </div>
-                    <p className="text-[11px] text-[var(--admin-text-muted)] mt-3">
-                      Pemasukan dan sharing profit otomatis tercatat di Keuangan Event.
-                    </p>
+
 
                     <div className="grid grid-cols-3 gap-3 mt-5">
                       <div className="rounded-xl bg-[var(--admin-accent-bg)] px-3 py-3">
@@ -808,7 +837,7 @@ const SesiFoto = () => {
                     })()}
 
                     <div className="mt-5 pt-4 border-t border-[var(--admin-border-subtle)]">
-                      <p className="text-xs text-[var(--admin-text-muted)] mb-2">Link live untuk customer</p>
+
                       {selectedEvent.share_token ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] pl-3 pr-1 py-1">
@@ -838,7 +867,7 @@ const SesiFoto = () => {
                     </div>
 
                     <div className="mt-5 pt-4 border-t border-[var(--admin-border-subtle)]">
-                      <p className="text-xs text-[var(--admin-text-muted)] mb-2">Link crew untuk mencatat sesi (tanpa login)</p>
+
                       {selectedEvent.crew_token ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] pl-3 pr-1 py-1">
@@ -1102,13 +1131,12 @@ const SesiFoto = () => {
                 <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
                   <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={draftVoucherPrice}
-                    onChange={(e) => setDraftVoucherPrice(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatThousand(draftVoucherPrice)}
+                    onChange={(e) => setDraftVoucherPrice(parseThousand(e.target.value))}
                     className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
-                    placeholder="30000"
+                    placeholder="30.000"
                     required
                   />
                 </div>
@@ -1125,13 +1153,12 @@ const SesiFoto = () => {
                 <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
                   <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={draftNoVoucherPrice}
-                    onChange={(e) => setDraftNoVoucherPrice(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatThousand(draftNoVoucherPrice)}
+                    onChange={(e) => setDraftNoVoucherPrice(parseThousand(e.target.value))}
                     className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
-                    placeholder="35000"
+                    placeholder="35.000"
                     required
                   />
                 </div>
@@ -1148,18 +1175,17 @@ const SesiFoto = () => {
                 <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
                   <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={draftPrintPrice}
-                    onChange={(e) => setDraftPrintPrice(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatThousand(draftPrintPrice)}
+                    onChange={(e) => setDraftPrintPrice(parseThousand(e.target.value))}
                     className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
-                    placeholder="10000"
+                    placeholder="10.000"
                     required
                   />
                 </div>
                 <span className="text-[10.5px] text-[var(--admin-text-muted)] mt-1 block">
-                  Biaya tambahan jika tamu meminta cetak ekstra lembar foto.
+                  Biaya tambahan jika tamu meminta cetak ekstra lembar foto. Default: 10.000.
                 </span>
               </div>
 
@@ -1171,17 +1197,16 @@ const SesiFoto = () => {
                 <div className="flex items-center gap-2 rounded-xl bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] px-3 focus-within:border-[#D90429]">
                   <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Rp</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="500"
-                    value={draftSharePerVoucher}
-                    onChange={(e) => setDraftSharePerVoucher(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatThousand(draftSharePerVoucher)}
+                    onChange={(e) => setDraftSharePerVoucher(parseThousand(e.target.value))}
                     className="w-full bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
-                    placeholder="0"
+                    placeholder="5.000"
                   />
                 </div>
                 <span className="text-[10.5px] text-[var(--admin-text-muted)] mt-1 block">
-                  Nominal bagi hasil per voucher dengan pihak penyelenggara event ini.
+                  Nominal bagi hasil per voucher dengan pihak penyelenggara event ini. Default: 5.000.
                 </span>
               </div>
 
@@ -1192,11 +1217,11 @@ const SesiFoto = () => {
                     setDraftVoucherPrice(30000);
                     setDraftNoVoucherPrice(35000);
                     setDraftPrintPrice(10000);
-                    setDraftSharePerVoucher(0);
+                    setDraftSharePerVoucher(5000);
                   }}
                   className="text-xs text-[var(--admin-text-muted)] hover:text-white transition-colors cursor-pointer"
                 >
-                  Reset Standar
+                  Reset Standar (Sharing 5.000)
                 </button>
 
                 <div className="flex gap-2">

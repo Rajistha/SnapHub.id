@@ -291,7 +291,7 @@ const QueueAdmin = () => {
               <a href={getAdminUrl()} className="ui-btn ui-btn-icon" aria-label="Kembali ke Admin"><FiArrowLeft size={16} /></a>
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold leading-tight">Antrian</h1>
-                <p className="text-sm text-[var(--admin-text-muted)]">Pilih event untuk mengelola antrian tamu.</p>
+
               </div>
             </div>
             {themeToggle}
@@ -410,7 +410,7 @@ const QueueAdmin = () => {
                 ) : (
                   <div className="py-8">
                     <p className="font-medium">Belum ada tamu yang dipanggil</p>
-                    <p className="text-sm text-[var(--admin-text-muted)] mt-1">Tekan “Panggil berikutnya” untuk memulai.</p>
+
                   </div>
                 )}
               </section>
@@ -473,7 +473,7 @@ const QueueAdmin = () => {
               {visibleQueues.length === 0 ? (
                 <div className="text-center py-12 px-4">
                   <p className="font-medium">{queues.length === 0 ? 'Belum ada tamu yang mengambil tiket' : 'Tidak ada hasil'}</p>
-                  {queues.length === 0 && <p className="text-sm text-[var(--admin-text-muted)] mt-1">Bagikan QR atau buka layar TV agar tamu bisa mengambil nomor.</p>}
+
                 </div>
               ) : (
                 <ul className="divide-y divide-[var(--admin-border)]">
@@ -527,7 +527,7 @@ const QueueAdmin = () => {
               <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(guestUrl)}`} alt="QR code untuk mengambil nomor antrian" width="192" height="192" className="w-48 h-48" />
             </div>
           </div>
-          <p className="text-sm text-[var(--admin-text-muted)] text-center mt-4">Tamu memindai QR ini untuk mengambil nomor.</p>
+
           <button
             onClick={() => setConfirmRegen(true)}
             className="mt-4 text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] underline underline-offset-2 mx-auto block"
