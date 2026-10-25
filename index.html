@@ -63,10 +63,13 @@
       var token = m[1].split('-').pop();
       var p = fetch('%VITE_SUPABASE_URL%/rest/v1/rpc/get_live_event', {
         method: 'POST',
-        headers: { apikey: '%VITE_SUPABASE_ANON_KEY%', 'Content-Type': 'application/json' },
+        headers: {
+          apikey: '%VITE_SUPABASE_ANON_KEY%',
+          Authorization: 'Bearer %VITE_SUPABASE_ANON_KEY%',
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ p_token: token })
-      }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); });
-      p.catch(function () {});
+      }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
       window.__live = { token: token, promise: p };
     })();
   </script>
@@ -99,10 +102,13 @@
 
         var p = fetch(url, {
           method: 'POST',
-          headers: { apikey: '%VITE_SUPABASE_ANON_KEY%', 'Content-Type': 'application/json' },
+          headers: {
+            apikey: '%VITE_SUPABASE_ANON_KEY%',
+            Authorization: 'Bearer %VITE_SUPABASE_ANON_KEY%',
+            'Content-Type': 'application/json'
+          },
           body: body
-        }).then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); });
-        p.catch(function () {});
+        }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
         window.__queuePreload = { gate: gate, session: savedSession, promise: p };
       } catch (e) {}
     })();

@@ -264,14 +264,14 @@ export const spokenNumber = (queueNumber) => {
 let announceTimer = null;
 
 // Nada panggilan lalu suara manusia, diulang dua kali.
-export const announceQueue = (queueNumber, name) => {
+// Nada panggilan lalu suara manusia, diulang dua kali (hanya menyebut nomor antrian).
+export const announceQueue = (queueNumber) => {
   if (announceTimer) {
     clearTimeout(announceTimer);
     announceTimer = null;
   }
   playChime(1);
-  const who = name && name.toLowerCase() !== 'tamu' ? `${name}, ` : '';
-  const text = `Nomor antrian ${spokenNumber(queueNumber)}. ${who}silakan menuju photobooth.`;
+  const text = `Nomor antrian ${spokenNumber(queueNumber)}, silakan menuju photobooth.`;
   announceTimer = setTimeout(() => {
     speak(text, { repeat: 2 });
     announceTimer = null;

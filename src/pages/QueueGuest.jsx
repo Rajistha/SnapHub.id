@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import { FiBell, FiCheck, FiVolume2, FiRotateCcw, FiNavigation, FiCamera, FiUser, FiArrowRight } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
@@ -448,13 +447,12 @@ const QueueGuest = () => {
             <Stat label="Estimasi" value={aheadForNew === 0 ? 'Langsung' : formatEstimate(estimateMinutes(aheadForNew)).replace('± ', '')} highlight />
           </dl>
         ) : (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
-            className={`w-full max-w-sm lg:max-w-md rounded-3xl border bg-white/[0.04] backdrop-blur px-5 py-[clamp(0.8rem,2.2vh,1.4rem)] lg:py-8 lg:text-center mt-2 sm:mt-4 ${myTurn ? 'border-emerald-400/70 shadow-[0_0_40px_rgba(52,211,153,0.2)]' : 'border-white/10'}`}
+          <div
+            className={`w-full max-w-sm lg:max-w-md rounded-3xl border bg-white/[0.04] backdrop-blur px-5 py-[clamp(0.8rem,2.2vh,1.4rem)] lg:py-8 lg:text-center mt-2 sm:mt-4 transition-all duration-300 ${myTurn ? 'border-emerald-400/70 shadow-[0_0_40px_rgba(52,211,153,0.2)]' : 'border-white/10'}`}
           >
             <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">Nomor antrian Anda</p>
             <p className="font-extrabold font-mono tracking-tight leading-none my-[clamp(0.15rem,0.8vh,0.5rem)] num" style={{ fontSize: 'clamp(3.4rem, 13vh, 6rem)' }}>{ticket.queue_number}</p>
-            {ticket.customer_name ? (
+            {ticket.customer_name && ticket.customer_name !== 'Tamu' ? (
               <p className="text-sm font-medium text-zinc-200 truncate">{ticket.customer_name}</p>
             ) : null}
             <div className="mt-[clamp(0.5rem,1.4vh,0.9rem)]">
@@ -476,14 +474,14 @@ const QueueGuest = () => {
                 <p className="text-sm text-zinc-400">Menunggu giliran</p>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
       </section>
 
       {/* ── Kartu aksi (form / info tiket) ── */}
       <div className={`relative shrink-0 px-4 lg:px-0 lg:w-[27rem] ${ticket ? 'mt-1 sm:mt-3 lg:mt-0' : ''}`}>
         {!ticket ? (
-          <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>
+          <section className={cardCls}>
             <div className="text-center sm:text-left">
               <h2 className="text-[clamp(1.15rem,3vh,1.45rem)] font-bold text-white">Ambil nomor antrian</h2>
               <p className={`text-xs text-zinc-400 mt-1 leading-relaxed ${hideOnShort}`}>
@@ -511,9 +509,9 @@ const QueueGuest = () => {
                 )}
               </button>
             </div>
-          </motion.section>
+          </section>
         ) : (
-          <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>
+          <section className={cardCls}>
             <dl className={`grid gap-2.5 ${ticket.status === 'waiting' ? 'grid-cols-3' : 'grid-cols-1'}`}>
               <Stat label="Giliran" value={active ? active.queue_number : '–'} sub={active ? statusMeta(active.status).label : undefined} />
               {ticket.status === 'waiting' && (
@@ -548,51 +546,41 @@ const QueueGuest = () => {
                 </button>
               ) : null}
             </div>
-          </motion.section>
+          </section>
         )}
         <p className="mt-3 text-center text-[11px] text-zinc-500 font-medium tracking-wide">Powered by SnapHub.id</p>
       </div>
       </div>
 
-      <AnimatePresence>
-        {callOpen && ticket && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85" role="alertdialog" aria-modal="true" aria-label="Giliran Anda">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-sm rounded-2xl bg-[#141416] border-2 border-emerald-400 p-7 text-center"
-            >
-              <FiBell size={30} className="mx-auto text-emerald-400" aria-hidden="true" />
-              <h2 className="text-2xl font-bold mt-3">Giliran Anda tiba</h2>
-              <p className="text-6xl font-bold font-mono my-4 num">{ticket.queue_number}</p>
-              <p className="text-sm text-zinc-300 mb-6">Silakan menuju booth dan tunjukkan nomor ini ke kru SnapHub.</p>
-              <button autoFocus onClick={confirmHeading} className="ui-btn ui-btn-ok ui-btn-lg w-full">
-                <FiCheck size={18} /> Saya menuju booth
-              </button>
-            </motion.div>
+      {callOpen && ticket && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85" role="alertdialog" aria-modal="true" aria-label="Giliran Anda">
+          <div className="w-full max-w-sm rounded-2xl bg-[#141416] border-2 border-emerald-400 p-7 text-center shadow-2xl">
+            <FiBell size={30} className="mx-auto text-emerald-400" aria-hidden="true" />
+            <h2 className="text-2xl font-bold mt-3">Giliran Anda tiba</h2>
+            <p className="text-6xl font-bold font-mono my-4 num">{ticket.queue_number}</p>
+            <p className="text-sm text-zinc-300 mb-6">Silakan menuju booth dan tunjukkan nomor ini ke kru SnapHub.</p>
+            <button autoFocus onClick={confirmHeading} className="ui-btn ui-btn-ok ui-btn-lg w-full">
+              <FiCheck size={18} /> Saya menuju booth
+            </button>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
-      <AnimatePresence>
-        {leaveOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 pb-24" role="alertdialog" aria-modal="true" aria-label="Batalkan nomor">
-            <div className="absolute inset-0 bg-black/75" onClick={() => setLeaveOpen(false)} aria-hidden="true" />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-gradient-to-b from-[#1b1b1f] to-[#121214] p-6 text-center shadow-2xl"
-            >
-              <h2 className="text-lg font-bold">Batalkan nomor ini?</h2>
-              <p className="text-sm text-zinc-400 mt-2">
-                Nomor <span className="font-mono font-semibold text-white">{ticket?.queue_number}</span> akan dilepas dan Anda keluar dari antrian.
-              </p>
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <button type="button" autoFocus onClick={() => setLeaveOpen(false)} className="ui-btn ui-btn-lg text-white border-white/20 hover:bg-white/10">Tidak</button>
-                <button type="button" onClick={() => releaseTicket(true)} className="ui-btn ui-btn-lg ui-btn-solid-danger">Ya, batalkan</button>
-              </div>
-            </motion.div>
+      {leaveOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 pb-24" role="alertdialog" aria-modal="true" aria-label="Batalkan nomor">
+          <div className="absolute inset-0 bg-black/75" onClick={() => setLeaveOpen(false)} aria-hidden="true" />
+          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-gradient-to-b from-[#1b1b1f] to-[#121214] p-6 text-center shadow-2xl">
+            <h2 className="text-lg font-bold">Batalkan nomor ini?</h2>
+            <p className="text-sm text-zinc-400 mt-2">
+              Nomor <span className="font-mono font-semibold text-white">{ticket?.queue_number}</span> akan dilepas dan Anda keluar dari antrian.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" autoFocus onClick={() => setLeaveOpen(false)} className="ui-btn ui-btn-lg text-white border-white/20 hover:bg-white/10">Tidak</button>
+              <button type="button" onClick={() => releaseTicket(true)} className="ui-btn ui-btn-lg ui-btn-solid-danger">Ya, batalkan</button>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 };

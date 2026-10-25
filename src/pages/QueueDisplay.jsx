@@ -114,7 +114,7 @@ const QueueDisplay = () => {
 
     lastCallRef.current = callKey;
     if (soundOn && active) {
-      announceQueue(active.queue_number, active.name);
+      announceQueue(active.queue_number);
     }
   }, [callKey, soundOn, active]);
 

@@ -9,7 +9,7 @@ const LiveSesi = lazy(() => import('./pages/LiveSesi'));
 const CrewSesi = lazy(() => import('./pages/CrewSesi'));
 const Linktree = lazy(() => import('./pages/Linktree'));
 const ManageLinks = lazy(() => import('./pages/ManageLinks'));
-const QueueGuest = lazy(() => import('./pages/QueueGuest'));
+import QueueGuest from './pages/QueueGuest';
 const QueueDisplay = lazy(() => import('./pages/QueueDisplay'));
 const ManageShortLinks = lazy(() => import('./pages/ManageShortLinks'));
 const ShortRedirect = lazy(() => import('./pages/ShortRedirect'));
@@ -46,14 +46,6 @@ const isQueueSubdomain = typeof window !== 'undefined' && (
   window.location.hostname === 'queue.snaphub.my.id' ||
   window.location.hostname.startsWith('queue.')
 );
-
-// Preload chunk tiket antrian segera jika diakses dari subdomain queue atau path /queue
-if (
-  typeof window !== 'undefined' &&
-  (isQueueSubdomain || window.location.pathname.startsWith('/queue'))
-) {
-  import('./pages/QueueGuest');
-}
 
 // <Navigate> hanya untuk rute internal; pindah ke domain lain harus lewat location.
 function ExternalRedirect({ to }) {
