@@ -180,9 +180,12 @@ const Admin = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <Link to="/" className="text-gray-500 hover:text-white text-sm transition-colors flex items-center justify-center gap-2">
+            <a
+              href={isLocalhost ? '/' : 'https://snaphub.my.id'}
+              className="text-gray-500 hover:text-white text-sm transition-colors inline-flex items-center justify-center gap-2"
+            >
               <FiArrowLeft /> Website
-            </Link>
+            </a>
           </div>
         </div>
       </div>
@@ -324,17 +327,25 @@ const Admin = () => {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 right-0 z-50 w-64 bg-[var(--admin-sidebar-bg)] border-l border-[var(--admin-border)] transform ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0 lg:sticky lg:top-0 h-screen transition-all duration-300 ease-in-out flex flex-col shadow-2xl lg:shadow-none`}>
-        <div className="p-6 shrink-0 border-b border-[var(--admin-border-subtle)] flex justify-between items-center">
-          <Link to="/" className="inline-block">
-            <img src="/icons.svg" alt="SnapHub Logo" className="h-8" />
-          </Link>
-          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] cursor-pointer">
-            <FiX size={24} />
+      <aside className={`fixed lg:static inset-y-0 right-0 z-50 w-64 bg-[var(--admin-sidebar-bg)] border-l border-[var(--admin-border)] transform ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0 lg:sticky lg:top-0 h-[100dvh] max-h-[100dvh] transition-all duration-300 ease-in-out flex flex-col shadow-2xl lg:shadow-none overscroll-contain`}>
+        <div className="px-5 py-4 shrink-0 border-b border-[var(--admin-border-subtle)] flex justify-between items-center">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('dashboard');
+              setIsSidebarOpen(false);
+            }}
+            className="inline-block cursor-pointer"
+            title="SnapHub Admin Dashboard"
+          >
+            <img src="/icons.svg" alt="SnapHub Logo" className="h-7 w-auto" />
+          </button>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] cursor-pointer p-1">
+            <FiX size={22} />
           </button>
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3">
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3 overscroll-contain">
           {/* Dashboard Standalone (tanpa section) */}
           <button
             type="button"
@@ -389,7 +400,7 @@ const Admin = () => {
                           key={tab.id}
                           href={tab.to}
                           onClick={(e) => handleAppNav(e, tab.to)}
-                          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent cursor-pointer"
+                          className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl transition-all text-left text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent cursor-pointer"
                         >
                           {tab.icon}
                           <span>{tab.label}</span>
@@ -402,7 +413,7 @@ const Admin = () => {
                         <Link
                           key={tab.id}
                           to={tab.to}
-                          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent cursor-pointer"
+                          className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl transition-all text-left text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent cursor-pointer"
                         >
                           {tab.icon}
                           <span>{tab.label}</span>
@@ -420,7 +431,7 @@ const Admin = () => {
                           setActiveTab(tab.id);
                           setIsSidebarOpen(false);
                         }}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left text-sm cursor-pointer ${
+                        className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl transition-all text-left text-sm cursor-pointer ${
                           isActive
                             ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] font-medium border border-[var(--admin-accent)]/20'
                             : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-hover-text)] hover:bg-[var(--admin-hover-bg)] border border-transparent'
@@ -437,29 +448,38 @@ const Admin = () => {
           })}
         </nav>
 
-        <div className="p-4 shrink-0 border-t border-[var(--admin-border-subtle)] space-y-2">
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors hover:bg-[var(--admin-hover-bg)] cursor-pointer">
+        <div className="p-3.5 shrink-0 border-t border-[var(--admin-border-subtle)] space-y-1.5 pb-[max(1rem,env(safe-area-inset-bottom,16px))]">
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl transition-colors hover:bg-[var(--admin-hover-bg)] cursor-pointer">
             {/* Toggle Switch */}
-            <div className={`relative w-11 h-6 rounded-full transition-colors flex items-center px-1 ${theme === 'dark' ? 'bg-[#3A2427]' : 'bg-[#E5E7EB]'}`}>
+            <div className={`relative w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${theme === 'dark' ? 'bg-[#3A2427]' : 'bg-[#E5E7EB]'}`}>
               <div className={`w-4 h-4 rounded-full transition-transform duration-300 ${theme === 'dark' ? 'bg-[#D28A94] translate-x-0' : 'bg-white translate-x-5 shadow-sm'}`} />
             </div>
             {/* Icon & Text */}
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              {theme === 'dark' ? <FiMoon className="text-[#D28A94]" size={16} /> : <FiSun className="text-gray-500" size={16} />}
+            <span className="flex items-center gap-2 text-xs font-semibold">
+              {theme === 'dark' ? <FiMoon className="text-[#D28A94]" size={14} /> : <FiSun className="text-gray-500" size={14} />}
               <span className={theme === 'dark' ? 'text-white' : 'text-gray-700'}>{theme === 'dark' ? 'Dark' : 'Light'}</span>
             </span>
           </button>
-          <Link to="/" className="w-full flex items-center justify-center gap-2 bg-[var(--admin-hover-bg)] hover:border-[var(--admin-border)] border border-transparent text-[var(--admin-text-main)] px-4 py-3 rounded-xl transition-all text-sm font-medium group">
+          <a
+            href={isLocalHost ? '/' : 'https://snaphub.my.id'}
+            target={isLocalHost ? '_self' : '_blank'}
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 bg-[var(--admin-hover-bg)] hover:border-[var(--admin-border)] border border-transparent text-[var(--admin-text-main)] px-3.5 py-2.5 rounded-xl transition-all text-xs font-semibold group cursor-pointer"
+          >
             <FiArrowLeft className="group-hover:-translate-x-1 transition-transform" /> Website
-          </Link>
-          <button onClick={() => setIsLogoutModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-[var(--admin-hover-bg)] hover:bg-red-500 hover:border-red-500 border border-transparent hover:text-white text-[var(--admin-text-main)] px-4 py-3 rounded-xl transition-colors text-sm font-medium cursor-pointer">
+          </a>
+          <button
+            type="button"
+            onClick={() => setIsLogoutModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 bg-[var(--admin-hover-bg)] hover:bg-red-500 hover:border-red-500 border border-transparent hover:text-white text-[var(--admin-text-main)] px-3.5 py-2.5 rounded-xl transition-colors text-xs font-semibold cursor-pointer"
+          >
             <FiLogOut /> Logout
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <main className="flex-1 flex flex-col h-[100dvh] lg:h-screen overflow-hidden relative">
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8">

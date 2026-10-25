@@ -215,20 +215,20 @@ const Navbar = () => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="fixed top-0 right-0 z-50 h-full w-72 bg-[#0a0a0a] border-l border-white/10 flex flex-col"
+              className="fixed top-0 right-0 z-50 h-[100dvh] max-h-[100dvh] w-72 bg-[#0a0a0a] border-l border-white/10 flex flex-col overscroll-contain shadow-2xl"
             >
-              <div className="flex items-center justify-between h-16 px-5 border-b border-white/10">
+              <div className="flex items-center justify-between h-16 px-5 border-b border-white/10 shrink-0">
                 <img src="/icons.svg" alt="SnapHub Logo" className="h-8 w-auto" />
                 <button
                   onClick={() => setMenuOpen(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-gray-400 hover:text-white transition-colors cursor-pointer p-1"
                   aria-label="Close menu"
                 >
                   <FiX size={24} />
                 </button>
               </div>
 
-              <nav className="flex-1 overflow-y-auto flex flex-col">
+              <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col overscroll-contain">
                 {navLinks.map((link) => (
                   <Link
                     key={link.to}
@@ -247,7 +247,7 @@ const Navbar = () => {
                 ))}
               </nav>
 
-              <div className="p-5 border-t border-white/10">
+              <div className="p-5 border-t border-white/10 shrink-0 pb-[max(1.25rem,env(safe-area-inset-bottom,20px))]">
                 <a
                   href={WA_URL}
                   target="_blank"

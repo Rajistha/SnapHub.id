@@ -121,16 +121,16 @@ function App() {
       <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* 0. Subdomain spanel.snaphub.my.id: dashboard admin */}
-        {isPanelSubdomain && (
+        {isPanelSubdomain ? (
           <>
             <Route path="/admin/*" element={<PanelLegacyRedirect />} />
             <Route path="/" element={<Admin />} />
-            <Route path="/*" element={<Admin />} />
+            <Route path="/:tab/*" element={<Admin />} />
+            <Route path="/:tab" element={<Admin />} />
+            <Route path="*" element={<Admin />} />
           </>
-        )}
-
-        {/* 1. Subdomain queue.snaphub.my.id: tiket tamu & TV display booth */}
-        {isQueueSubdomain && (
+        ) : isQueueSubdomain ? (
+          /* 1. Subdomain queue.snaphub.my.id: tiket tamu & TV display booth */
           <>
             <Route path="/:slug/qr" element={<QueueQr />} />
             <Route path="/:slug/display" element={<QueueDisplay />} />
@@ -139,28 +139,22 @@ function App() {
             <Route path="/" element={<QueueGuest />} />
             <Route path="*" element={<QueueGuest />} />
           </>
-        )}
-
-        {/* 2. Subdomain live.snaphub.my.id: customer live view tanpa /live */}
-        {isLiveSubdomain && (
+        ) : isLiveSubdomain ? (
+          /* 2. Subdomain live.snaphub.my.id: customer live view tanpa /live */
           <>
             <Route path="/:slug" element={<LiveSesi />} />
             <Route path="/live/:slug" element={<LiveSesi />} />
             <Route path="/" element={<ExternalRedirect to="https://snaphub.my.id" />} />
             <Route path="*" element={<LiveSesi />} />
           </>
-        )}
-
-        {/* 3. Subdomain link.snaphub.my.id: Bio / Linktree publik untuk pengunjung */}
-        {isLinkSubdomain && (
+        ) : isLinkSubdomain ? (
+          /* 3. Subdomain link.snaphub.my.id: Bio / Linktree publik */
           <>
             <Route path="/" element={<Linktree />} />
             <Route path="*" element={<Linktree />} />
           </>
-        )}
-
-        {/* 4. Subdomain app.snaphub.my.id: Aplikasi internal (Kelola Link, Sesi Foto, & Antrian) */}
-        {isAppSubdomain && (
+        ) : isAppSubdomain ? (
+          /* 4. Subdomain app.snaphub.my.id: Aplikasi internal */
           <>
             <Route path="/queue" element={<QueueAdmin />} />
             <Route path="/short" element={<ManageShortLinks />} />
@@ -175,32 +169,47 @@ function App() {
             <Route path="/" element={<SesiFoto />} />
             <Route path="*" element={<SesiFoto />} />
           </>
-        )}
-
-        {/* 5. Domain Utama snaphub.my.id & Localhost */}
-        <Route path="/" element={<Home />} />
-        {isLocalHost ? (
-          <>
-            <Route path="/admin/*" element={<Admin />} />
-            <Route path="/admin/links" element={<ManageLinks />} />
-          </>
         ) : (
-          <Route path="/admin/*" element={<AdminRedirect />} />
+          /* 5. Domain Utama snaphub.my.id & Localhost */
+          <>
+            <Route path="/" element={<Home />} />
+            {isLocalHost ? (
+              <>
+                <Route path="/admin/*" element={<Admin />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/links" element={<ManageLinks />} />
+              </>
+            ) : (
+              <Route path="/admin/*" element={<AdminRedirect />} />
+            )}
+
+            {/* Direct Section Aliases agar tidak tertelan shortlink */}
+            <Route path="/pricelist" element={<Navigate to="/#pricelist" replace />} />
+            <Route path="/schedule" element={<Navigate to="/#availability" replace />} />
+            <Route path="/availability" element={<Navigate to="/#availability" replace />} />
+            <Route path="/gallery" element={<Navigate to="/#gallery" replace />} />
+            <Route path="/about" element={<Navigate to="/#about" replace />} />
+            <Route path="/features" element={<Navigate to="/#features" replace />} />
+            <Route path="/maps" element={<Navigate to="/#maps" replace />} />
+            <Route path="/location" element={<Navigate to="/#maps" replace />} />
+            <Route path="/contact" element={<Navigate to="/#contact" replace />} />
+
+            <Route path="/queue/:slug/qr" element={<QueueQr />} />
+            <Route path="/queue/:slug/display" element={<QueueDisplay />} />
+            <Route path="/queue/:slug" element={<QueueGuest />} />
+            <Route path="/queue" element={<QueueAdmin />} />
+            <Route path="/short" element={<ManageShortLinks />} />
+            <Route path="/links" element={<Linktree />} />
+            <Route path="/linktree" element={<Navigate to="/links" replace />} />
+            <Route path="/bio" element={<Navigate to="/links" replace />} />
+            <Route path="/sesi" element={<SesiFoto />} />
+            <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
+            <Route path="/live/:slug" element={<LiveSesi />} />
+            <Route path="/crew/:slug" element={<CrewSesi />} />
+            {/* Shortlink: snaphub.my.id/<slug> */}
+            <Route path="/:slug" element={<ShortRedirect />} />
+          </>
         )}
-        <Route path="/queue/:slug/qr" element={<QueueQr />} />
-        <Route path="/queue/:slug/display" element={<QueueDisplay />} />
-        <Route path="/queue/:slug" element={<QueueGuest />} />
-        <Route path="/queue" element={<QueueAdmin />} />
-        <Route path="/short" element={<ManageShortLinks />} />
-        <Route path="/links" element={<Linktree />} />
-        <Route path="/linktree" element={<Navigate to="/links" replace />} />
-        <Route path="/bio" element={<Navigate to="/links" replace />} />
-        <Route path="/sesi" element={<SesiFoto />} />
-        <Route path="/sesi-foto" element={<Navigate to="/sesi" replace />} />
-        <Route path="/live/:slug" element={<LiveSesi />} />
-        <Route path="/crew/:slug" element={<CrewSesi />} />
-        {/* Shortlink: snaphub.my.id/<slug>. Rute statis di atas selalu diprioritaskan. */}
-        <Route path="/:slug" element={<ShortRedirect />} />
       </Routes>
       </Suspense>
       </ErrorBoundary>

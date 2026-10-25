@@ -583,11 +583,11 @@ const SesiFoto = () => {
               <button
                 type="button"
                 onClick={openEventPriceModal}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[var(--admin-border)] bg-[var(--admin-surface)] hover:bg-[var(--admin-hover-bg)] hover:border-[#D90429]/40 text-xs font-bold text-[var(--admin-text-main)] shadow-sm transition-all cursor-pointer"
-                title="Atur Harga & Sharing Profit Event Ini"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--admin-border)] bg-[var(--admin-surface)] hover:bg-[var(--admin-hover-bg)] hover:border-[#D90429]/40 text-xs font-bold text-[var(--admin-text-main)] shadow-sm transition-all cursor-pointer"
+                title="Atur Pricing & Sharing Profit Event Ini"
               >
-                <FiTag size={14} className="text-[#D90429] shrink-0" />
-                <span>Harga & Sharing</span>
+                <FiTag size={13} className="text-[#D90429] shrink-0" />
+                <span>Pricing</span>
               </button>
             )}
             <button
@@ -1074,7 +1074,7 @@ const SesiFoto = () => {
                 </div>
                 <div className="min-w-0 pr-2">
                   <h3 className="text-base font-bold text-[var(--admin-text-main)] font-heading leading-tight truncate">
-                    Harga & Sharing
+                    Pricing
                   </h3>
                   <p className="text-xs text-[#D90429] font-medium mt-0.5 truncate">
                     {selectedEvent.name}
