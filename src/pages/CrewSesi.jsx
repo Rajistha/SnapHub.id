@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import { FiLink2, FiWifiOff, FiCalendar, FiPlus, FiMinus, FiTrash2, FiEye, FiEyeOff } from 'react-icons/fi';
 import SwipeableSessionRow from '../components/SwipeableSessionRow';
-import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, sessionPrice, eventTotal } from '../lib/photoSession';
+import { VOUCHER_PRICE, NO_VOUCHER_PRICE, PRINT_PRICE, sessionPrice, eventTotal, pricingOf } from '../lib/photoSession';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -30,6 +30,7 @@ const CrewSesi = () => {
   const [status, setStatus] = useState('loading');
   const [noVoucher, setNoVoucher] = useState(false);
   const [prints, setPrints] = useState(0);
+  const percent = event?.pricing_mode === 'percent'; // mode persentase: satu tarif, tanpa voucher
   const [confirmId, setConfirmId] = useState(null);
   const [hideTotal, setHideTotal] = useState(() => {
     try { return localStorage.getItem('sesiHideTotal') === '1'; } catch { return false; }
@@ -108,7 +109,7 @@ const CrewSesi = () => {
   const handleAdd = () => {
     const session = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      no_voucher: noVoucher,
+      no_voucher: percent ? false : noVoucher,
       prints,
       created_at: new Date().toISOString(),
     };
@@ -132,11 +133,13 @@ const CrewSesi = () => {
   const voucherCount = sessions.filter((s) => !s.no_voucher).length;
   const printCount = sessions.reduce((sum, s) => sum + (s.prints || 0), 0);
 
-  const stats = [
-    { label: 'Voucher', value: voucherCount },
-    { label: 'Non-voucher', value: sessions.length - voucherCount },
-    { label: 'Print', value: printCount },
-  ];
+  const stats = percent
+    ? [{ label: 'Sesi', value: sessions.length }, { label: 'Print', value: printCount }]
+    : [
+        { label: 'Voucher', value: voucherCount },
+        { label: 'Non-voucher', value: sessions.length - voucherCount },
+        { label: 'Print', value: printCount },
+      ];
 
   return (
     <div className="relative min-h-screen bg-[var(--admin-bg)] text-[var(--admin-text-main)] overflow-hidden">
@@ -205,7 +208,7 @@ const CrewSesi = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className={`grid gap-2 ${stats.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
               {stats.map((c) => (
                 <div key={c.label} className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-surface)] p-3 text-center">
                   <p className="text-2xl font-bold tabular-nums font-heading">{c.value}</p>
@@ -218,6 +221,8 @@ const CrewSesi = () => {
             <div className="rounded-3xl border border-[var(--admin-border)] bg-[var(--admin-surface)] p-5">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-muted)] mb-4">Sesi Baru</h2>
 
+              {!percent && (
+              <>
               <p className="text-xs text-[var(--admin-text-muted)] mb-2">Tipe</p>
               <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[var(--admin-hover-bg)]">
                 {[
@@ -239,6 +244,8 @@ const CrewSesi = () => {
                   </button>
                 ))}
               </div>
+              </>
+              )}
 
               <p className="text-xs text-[var(--admin-text-muted)] mt-4 mb-2">Jumlah print (+{formatRp(PRINT_PRICE)}/print)</p>
               <div className="flex items-center justify-between rounded-xl bg-[var(--admin-hover-bg)] p-1">
@@ -265,7 +272,7 @@ const CrewSesi = () => {
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-[var(--admin-text-muted)]">Harga sesi</p>
                   <p className="text-lg font-bold text-[var(--admin-accent)] tabular-nums">
-                    {formatRp((noVoucher ? NO_VOUCHER_PRICE : VOUCHER_PRICE) + prints * PRINT_PRICE)}
+                    {formatRp((percent ? (event?.session_price || 45000) : noVoucher ? NO_VOUCHER_PRICE : VOUCHER_PRICE) + prints * PRINT_PRICE)}
                   </p>
                 </div>
                 <button onClick={handleAdd} className="btn-primary px-5 py-3 text-sm flex items-center gap-2">
@@ -295,6 +302,7 @@ const CrewSesi = () => {
                           </span>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
+                              {!percent && (
                               <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
                                 s.no_voucher
                                   ? 'bg-amber-500/15 text-amber-500'
@@ -302,6 +310,7 @@ const CrewSesi = () => {
                               }`}>
                                 {s.no_voucher ? 'Non-voucher' : 'Voucher'}
                               </span>
+                              )}
                               {s.prints > 0 && (
                                 <span className="text-xs text-[var(--admin-text-muted)]">{s.prints} print</span>
                               )}
@@ -312,7 +321,7 @@ const CrewSesi = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-semibold text-[var(--admin-text-main)] tabular-nums">{formatRp(sessionPrice(s))}</span>
+                          <span className="text-sm font-semibold text-[var(--admin-text-main)] tabular-nums">{formatRp(sessionPrice(s, pricingOf(event)))}</span>
                           <button
                             onClick={() => setConfirmId(s.id)}
                             className="hidden sm:block p-1.5 rounded-md text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"

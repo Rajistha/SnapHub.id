@@ -5,6 +5,7 @@ import {
   FiPlus, FiTrash2, FiSave, FiRotateCcw, 
   FiUploadCloud, FiExternalLink, FiFileText 
 } from 'react-icons/fi';
+import { removeUnusedFiles } from '../lib/storageCleanup';
 import { DEFAULT_PACKAGES, DEFAULT_TNC, mergePackages, formatRupiah, startFrom } from '../lib/pricelistDefaults';
 
 const inputCls =
@@ -28,6 +29,8 @@ const AdminPricelist = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [pdfDirty, setPdfDirty] = useState(false);
+  const [savingPdf, setSavingPdf] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -120,14 +123,46 @@ const AdminPricelist = () => {
         .getPublicUrl(fileName);
 
       setPdfUrl(isPdf ? 'https://snaphub.my.id/pricelist.pdf' : publicUrl);
-      setDirty(true);
-      toast.success('File pricelist berhasil diunggah! Klik "Simpan Pricelist" untuk menerapkan ke website.');
+      setPdfDirty(true);
+      toast.success('File berhasil diunggah! Klik "Simpan File" agar tampil di website.');
     } catch (err) {
       console.error('Upload error:', err);
       toast.error('Gagal mengunggah file: ' + (err.message || 'Error'));
     } finally {
       setUploadingPdf(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Simpan sebagian isi setting 'pricelist' tanpa menimpa bagian lain yang sudah tersimpan.
+  const saveSettings = async (patch) => {
+    const { data, error: readError } = await supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'pricelist')
+      .maybeSingle();
+    if (readError) throw readError;
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({ key: 'pricelist', value: { ...(data?.value || {}), ...patch }, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  };
+
+  const handleSavePdf = async () => {
+    setSavingPdf(true);
+    try {
+      const savedUrl = pdfUrl.trim() || '/PriceGuideSnapHub.id.pdf';
+      await saveSettings({ pdfUrl: savedUrl });
+      setPdfDirty(false);
+      // Hapus file lama yang tidak lagi dipakai (bucket pricelist + sisa upload lama di client-logos)
+      await removeUnusedFiles('pricelist', { inUse: savedUrl });
+      await removeUnusedFiles('client-logos', { prefix: 'pricelist_' });
+      toast.success('File unduhan pricelist berhasil disimpan');
+    } catch (error) {
+      console.error(error);
+      toast.error('Gagal menyimpan file unduhan');
+    } finally {
+      setSavingPdf(false);
     }
   };
 
@@ -155,22 +190,11 @@ const AdminPricelist = () => {
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('site_settings')
-        .upsert({ 
-          key: 'pricelist', 
-          value: { 
-            packages: cleaned, 
-            tnc: cleanedTnc,
-            pdfUrl: pdfUrl.trim() || '/PriceGuideSnapHub.id.pdf'
-          }, 
-          updated_at: new Date().toISOString() 
-        });
-      if (error) throw error;
+      await saveSettings({ packages: cleaned, tnc: cleanedTnc });
       setPackages(toEditable(mergePackages(cleaned)));
       setTnc(cleanedTnc);
       setDirty(false);
-      toast.success('Pricelist & file unduhan berhasil disimpan');
+      toast.success('Pricelist berhasil disimpan');
     } catch (error) {
       console.error(error);
       toast.error('Gagal menyimpan pricelist');
@@ -246,7 +270,7 @@ const AdminPricelist = () => {
               value={pdfUrl}
               onChange={(e) => {
                 setPdfUrl(e.target.value);
-                setDirty(true);
+                setPdfDirty(true);
               }}
               placeholder="https://... atau /PriceGuideSnapHub.id.pdf"
               className={inputCls}
@@ -256,8 +280,8 @@ const AdminPricelist = () => {
                 type="button"
                 onClick={() => {
                   setPdfUrl('/PriceGuideSnapHub.id.pdf');
-                  setDirty(true);
-                  toast('Direset ke file bawaan, klik Simpan untuk menerapkan');
+                  setPdfDirty(true);
+                  toast('Direset ke file bawaan, klik Simpan File untuk menerapkan');
                 }}
                 className="shrink-0 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] px-3 py-2 rounded-lg border border-[var(--admin-border)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer"
                 title="Reset ke bawaan"
@@ -267,6 +291,18 @@ const AdminPricelist = () => {
             )}
           </div>
 
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          {pdfDirty && <span className="text-xs text-[var(--admin-text-muted)]">File belum disimpan ke website</span>}
+          <button
+            type="button"
+            onClick={handleSavePdf}
+            disabled={savingPdf || !pdfDirty}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--admin-accent)] text-white text-xs font-medium hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+          >
+            <FiSave size={14} /> {savingPdf ? 'Menyimpan...' : 'Simpan File'}
+          </button>
         </div>
       </div>
 

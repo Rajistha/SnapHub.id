@@ -3,20 +3,21 @@ import toast, { Toaster } from 'react-hot-toast';
 import { SiWhatsapp } from 'react-icons/si';
 import {
   FiArrowLeft, FiSun, FiMoon, FiSearch, FiChevronRight, FiCopy, FiExternalLink,
-  FiTrash2, FiGrid, FiRefreshCw, FiPlay, FiCheck, FiSkipForward, FiVolume2, FiRotateCcw, FiShare2,
+  FiTrash2, FiGrid, FiRefreshCw, FiPlay, FiCheck, FiSkipForward, FiVolume2, FiRotateCcw, FiShare2, FiCamera, FiPlus,
 } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
 import useAdminSession from '../lib/useAdminSession';
 import usePolling from '../lib/usePolling';
 import { playChime, unlockAudio } from '../lib/chime';
 import { isActive, statusMeta, toWaNumber } from '../lib/queueStatus';
+import { formatRupiah } from '../lib/pricelistDefaults';
 import {
   MONTHS, daysUntil, formatDate, getAdminUrl, newToken, queueDisplayUrl, queueGuestUrl, queueQrUrl, todayString,
 } from '../lib/appUrls';
 import AdminLogin from '../components/ui/AdminLogin';
 import Modal from '../components/ui/Modal';
 
-const QUEUE_COLUMNS = 'id,event_id,queue_number,seq_number,customer_name,customer_phone,status,called_count,called_at,created_at';
+const QUEUE_COLUMNS = 'id,event_id,queue_number,seq_number,customer_name,customer_phone,status,called_count,called_at,created_at,prints,no_voucher';
 
 const sortBySeq = (rows) => [...rows].sort((a, b) => a.seq_number - b.seq_number);
 
@@ -44,15 +45,33 @@ const QueueAdmin = () => {
   const [shareOpen, setShareOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [nextChoiceOpen, setNextChoiceOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addingGuest, setAddingGuest] = useState(false);
   const tokenRequested = useRef(new Set());
 
   /* ── Event ─────────────────────────────────────────────── */
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('financial_events')
-      .select('id,name,date,queue_token')
+      .select('id,name,date,queue_token,voucher_price,no_voucher_price,print_price,pricing_mode,session_price')
       .order('date', { ascending: false });
+    if (error) {
+      ({ data, error } = await supabase
+        .from('financial_events')
+        .select('id,name,date,queue_token,voucher_price,no_voucher_price,print_price')
+        .order('date', { ascending: false }));
+    }
+    if (error) {
+      // Kolom tarif belum ada (event_pricing.sql belum dijalankan): tetap tampilkan event, tarif memakai bawaan.
+      ({ data, error } = await supabase
+        .from('financial_events')
+        .select('id,name,date,queue_token')
+        .order('date', { ascending: false }));
+    }
     if (error) toast.error('Gagal mengambil daftar event');
     setEvents(data || []);
     setLoadingEvents(false);
@@ -94,6 +113,7 @@ const QueueAdmin = () => {
       .order('seq_number', { ascending: true });
     if (!error && data) setQueues(data);
     if (showSpinner) setLoadingQueues(false);
+    return error ? null : data;
   }, []);
 
   useEffect(() => {
@@ -158,17 +178,38 @@ const QueueAdmin = () => {
     }
   };
 
-  const callNext = () =>
+  // Bila masih ada tamu aktif, tanyakan dulu nasibnya: selesai (sesi dicatat) atau dilewati (tidak datang).
+  // Data dimuat ulang dulu: tombol tidak boleh bekerja berdasarkan daftar yang sudah usang.
+  const requestCallNext = async () => {
+    const fresh = await fetchQueues(selectedEventId);
+    const rows = fresh || queues;
+    if (!rows.some((q) => q.status === 'waiting')) {
+      toast('Tidak ada tamu yang menunggu (daftar sudah diperbarui)');
+      return;
+    }
+    if (rows.some(isActive)) setNextChoiceOpen(true);
+    else callNext('complete');
+  };
+
+  const callNext = (currentAction = 'complete') =>
     run(async () => {
       unlockAudio();
       const { data, error } = await supabase.rpc('admin_queue_call_next', {
         p_event_id: selectedEventId,
         p_auto_session: autoSession,
+        p_current_action: currentAction,
       });
       if (error) throw error;
-      await fetchQueues(selectedEventId);
+      const fresh = await fetchQueues(selectedEventId);
       if (!data) {
-        toast('Tidak ada tamu yang menunggu');
+        // Server bilang kosong. Bandingkan dengan data terbaru agar ketidaksinkronan terlihat jelas.
+        const stillWaiting = (fresh || []).filter((q) => q.status === 'waiting').length;
+        if (stillWaiting > 0) {
+          console.warn('admin_queue_call_next mengembalikan kosong padahal ada tamu menunggu', { selectedEventId, currentAction, fresh });
+          toast.error(`Gagal memanggil: server tidak menemukan tamu, padahal ada ${stillWaiting} menunggu. Coba lagi.`);
+        } else {
+          toast('Tidak ada tamu yang menunggu (daftar sudah diperbarui)');
+        }
         return;
       }
       playChime(0.5);
@@ -183,6 +224,48 @@ const QueueAdmin = () => {
       toast.success(autoSession ? `${item.queue_number} selesai, sesi foto dicatat` : `${item.queue_number} selesai`);
     }, 'Gagal menyelesaikan antrian');
 
+  // Print tambahan tamu: langsung disimpan di tiket, dicatat ke sesi saat tamu diselesaikan.
+  const changePrints = async (item, delta) => {
+    const next = Math.min(50, Math.max(0, (item.prints || 0) + delta));
+    if (next === (item.prints || 0)) return;
+    setQueues((prev) => prev.map((q) => (q.id === item.id ? { ...q, prints: next } : q)));
+    const { error } = await supabase.from('event_queues').update({ prints: next }).eq('id', item.id);
+    if (error) {
+      setQueues((prev) => prev.map((q) => (q.id === item.id ? { ...q, prints: item.prints || 0 } : q)));
+      toast.error('Gagal menyimpan jumlah print');
+    }
+  };
+
+  // Tarif per event sama persis dengan yang dipakai database saat mencatat sesi (recalc_event_finance).
+  const percentMode = selectedEvent?.pricing_mode === 'percent';
+  const priceOf = (item) => {
+    const voucher = selectedEvent?.voucher_price ?? 30000;
+    const noVoucher = selectedEvent?.no_voucher_price ?? 35000;
+    const printPrice = selectedEvent?.print_price ?? 10000;
+    const base = percentMode ? (selectedEvent?.session_price ?? 45000) : item.no_voucher ? noVoucher : voucher;
+    const prints = item.prints || 0;
+    return { base, printPrice, prints, total: base + prints * printPrice };
+  };
+
+  // Pakai voucher atau tidak menentukan tarif sesi (Rp 30.000 vs Rp 35.000), dicatat saat tamu selesai.
+  const setNoVoucher = async (item, value) => {
+    if (!!item.no_voucher === value) return;
+    setQueues((prev) => prev.map((q) => (q.id === item.id ? { ...q, no_voucher: value } : q)));
+    const { error } = await supabase.from('event_queues').update({ no_voucher: value }).eq('id', item.id);
+    if (error) {
+      setQueues((prev) => prev.map((q) => (q.id === item.id ? { ...q, no_voucher: !!item.no_voucher } : q)));
+      toast.error('Gagal menyimpan status voucher');
+    }
+  };
+
+  const start = (item) =>
+    run(async () => {
+      const { error } = await supabase.rpc('admin_queue_start', { p_id: item.id });
+      if (error) throw error;
+      setQueues((prev) => prev.map((q) => (q.id === item.id ? { ...q, status: 'serving' } : q)));
+      toast.success(`${item.queue_number} mulai difoto`);
+    }, 'Gagal memulai sesi foto');
+
   const updateRow = (item, patch, okMessage, errorMessage) =>
     run(async () => {
       const { error } = await supabase.from('event_queues').update(patch).eq('id', item.id);
@@ -194,9 +277,10 @@ const QueueAdmin = () => {
   const recall = (item) => {
     unlockAudio();
     playChime(0.5);
+    // Status dikembalikan ke 'called' agar HP tamu yang sudah menekan "menuju booth" berbunyi lagi.
     return updateRow(
       item,
-      { called_at: new Date().toISOString(), called_count: (item.called_count || 0) + 1 },
+      { status: 'called', called_at: new Date().toISOString(), called_count: (item.called_count || 0) + 1 },
       `Memanggil ulang ${item.queue_number}`,
       'Gagal memanggil ulang'
     );
@@ -221,6 +305,42 @@ const QueueAdmin = () => {
       patchEvent(selectedEvent.id, { queue_token: token });
       toast.success('Link baru dibuat. QR lama tidak berlaku lagi.');
     }, 'Gagal membuat link baru');
+
+  const handleAddManual = async (e) => {
+    e.preventDefault();
+    if (!addName.trim()) {
+      toast.error('Nama tamu wajib diisi');
+      return;
+    }
+    setAddingGuest(true);
+    try {
+      const nextSeq = (queues.reduce((max, q) => Math.max(max, q.seq_number || 0), 0) || 0) + 1;
+      const queueNumber = `A-${String(nextSeq).padStart(2, '0')}`;
+      let phone = addPhone.trim().replace(/[^0-9]/g, '');
+      if (phone.startsWith('0')) phone = `62${phone.slice(1)}`;
+
+      const { error } = await supabase.from('event_queues').insert({
+        event_id: selectedEventId,
+        queue_number: queueNumber,
+        seq_number: nextSeq,
+        customer_name: addName.trim(),
+        customer_phone: phone,
+        status: 'waiting',
+      });
+      if (error) throw error;
+
+      toast.success(`Nomor ${queueNumber} (${addName.trim()}) berhasil ditambahkan`);
+      setAddName('');
+      setAddPhone('');
+      setAddOpen(false);
+      await fetchQueues(selectedEventId);
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal menambah antrian: ' + (err.message || 'Error'));
+    } finally {
+      setAddingGuest(false);
+    }
+  };
 
   const copy = async (text, message) => {
     try {
@@ -371,41 +491,101 @@ const QueueAdmin = () => {
             </div>
           </header>
 
-          <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+          <main className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] space-y-4 sm:space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               {/* Sedang dilayani */}
-              <section className="ui-card p-5 sm:p-6 lg:col-span-3" aria-live="polite">
+              <section className="ui-card p-4 sm:p-6 lg:col-span-3" aria-live="polite">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <h2 className="text-sm font-semibold text-[var(--admin-text-muted)]">Sedang dilayani</h2>
                   {active && <span className="ui-status" data-tone="live">{statusMeta(active.status).label}</span>}
                 </div>
 
                 {active ? (
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
-                    <div className="min-w-0">
-                      <p className="text-6xl font-bold font-mono tracking-tight num leading-none">{active.queue_number}</p>
-                      <p className="text-lg font-medium mt-3 truncate">{active.customer_name}</p>
-                      <p className="text-sm text-[var(--admin-text-muted)] mt-1">
-                        Dipanggil {active.called_count || 1}×
-                        {active.customer_phone && (
-                          <>
-                            {' · '}
-                            <a href={waLink(active)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--admin-text-main)] underline underline-offset-2">
-                              <SiWhatsapp size={13} aria-hidden="true" /> Kirim pesan
-                            </a>
-                          </>
-                        )}
-                      </p>
+                  <div className="flex flex-col gap-3 sm:gap-4">
+                    {/* Identitas tamu + total bayar */}
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                      <div className="min-w-0">
+                        <p className="text-5xl sm:text-6xl font-bold font-mono tracking-tight num leading-none">{active.queue_number}</p>
+                        <p className="text-base sm:text-lg font-medium mt-2 truncate">{active.customer_name}</p>
+                        <p className="text-xs sm:text-sm text-[var(--admin-text-muted)] mt-0.5">
+                          Dipanggil {active.called_count || 1}×
+                          {active.customer_phone && (
+                            <>
+                              {' · '}
+                              <a href={waLink(active)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--admin-text-main)] underline underline-offset-2">
+                                <SiWhatsapp size={12} aria-hidden="true" /> Kirim pesan
+                              </a>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      {(() => {
+                        const price = priceOf(active);
+                        return (
+                          <div className="rounded-2xl bg-[var(--admin-accent-bg)] border border-[var(--admin-accent)]/30 px-3 py-2 text-right min-w-[7.5rem]" aria-live="polite">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--admin-text-muted)]">Total bayar</p>
+                            <p className="text-xl sm:text-2xl font-bold num text-[var(--admin-accent)] leading-tight">{formatRupiah(price.total)}</p>
+                            <p className="text-[10px] sm:text-xs text-[var(--admin-text-muted)] leading-tight mt-0.5">
+                              {percentMode ? 'Sesi ' : ''}{formatRupiah(price.base)}
+                              {price.prints > 0 && ` + ${price.prints}×${formatRupiah(price.printPrice).replace('Rp ', '')}`}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
-                    <div className="flex flex-col gap-2 sm:w-52 shrink-0">
-                      <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ok ui-btn-lg">
-                        <FiCheck size={18} /> Selesai
-                      </button>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button onClick={() => recall(active)} disabled={busy} className="ui-btn ui-btn-sm"><FiVolume2 size={14} /> Panggil lagi</button>
-                        <button onClick={() => skip(active)} disabled={busy} className="ui-btn ui-btn-sm"><FiSkipForward size={14} /> Lewati</button>
+
+                    {/* Voucher + print */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {!percentMode && (
+                      <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--admin-border)] p-1" role="group" aria-label="Voucher">
+                        {[{ v: false, label: 'Pakai voucher' }, { v: true, label: 'Tanpa voucher' }].map((o) => (
+                          <button
+                            key={o.label}
+                            type="button"
+                            onClick={() => setNoVoucher(active, o.v)}
+                            aria-pressed={!!active.no_voucher === o.v}
+                            className={`rounded-lg min-h-10 px-2 text-sm font-semibold transition-colors ${
+                              !!active.no_voucher === o.v
+                                ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] border border-[var(--admin-accent)]/30'
+                                : 'text-[var(--admin-text-muted)] hover:bg-[var(--admin-hover-bg)] border border-transparent'
+                            }`}
+                          >
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                      )}
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-[var(--admin-border)] pl-3 pr-1 py-1">
+                        <span className="text-sm text-[var(--admin-text-muted)]">Print tambahan</span>
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => changePrints(active, -1)} disabled={!active.prints} className="ui-btn ui-btn-icon min-h-10 min-w-10 text-lg" aria-label="Kurangi print">−</button>
+                          <span className="w-6 text-center text-base font-semibold num" aria-live="polite">{active.prints || 0}</span>
+                          <button type="button" onClick={() => changePrints(active, 1)} className="ui-btn ui-btn-icon min-h-10 min-w-10 text-lg" aria-label="Tambah print">+</button>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Aksi */}
+                    {active.status === 'serving' ? (
+                      <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ok ui-btn-lg w-full">
+                        <FiCheck size={18} /> Selesai
+                      </button>
+                    ) : (
+                      <button onClick={() => start(active)} disabled={busy} className="ui-btn ui-btn-ok ui-btn-lg w-full">
+                        <FiCamera size={18} /> Mulai foto
+                      </button>
+                    )}
+                    <div className={`grid gap-2 ${active.status === 'serving' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                      {active.status !== 'serving' && (
+                        <button onClick={() => recall(active)} disabled={busy} className="ui-btn min-h-11"><FiVolume2 size={15} /> Panggil lagi</button>
+                      )}
+                      <button onClick={() => skip(active)} disabled={busy} className="ui-btn min-h-11"><FiSkipForward size={15} /> Lewati</button>
+                    </div>
+                    {active.status !== 'serving' && (
+                      <button onClick={() => complete(active)} disabled={busy} className="text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] underline underline-offset-2 mx-auto py-1">
+                        Langsung tandai selesai
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="py-8">
@@ -416,7 +596,7 @@ const QueueAdmin = () => {
               </section>
 
               {/* Berikutnya */}
-              <section className="ui-card p-5 sm:p-6 lg:col-span-2 flex flex-col">
+              <section className="ui-card p-4 sm:p-6 lg:col-span-2 flex flex-col">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <h2 className="text-sm font-semibold text-[var(--admin-text-muted)]">Berikutnya</h2>
                   <span className="text-sm text-[var(--admin-text-muted)] num">{waiting.length} menunggu</span>
@@ -435,7 +615,7 @@ const QueueAdmin = () => {
                 )}
 
                 <div className="mt-auto space-y-3">
-                  <button onClick={callNext} disabled={busy || waiting.length === 0} className="ui-btn ui-btn-primary ui-btn-lg w-full">
+                  <button onClick={requestCallNext} disabled={busy || waiting.length === 0} className="ui-btn ui-btn-primary ui-btn-lg w-full min-h-12">
                     <FiPlay size={16} /> Panggil berikutnya
                   </button>
                   <label className="flex items-start gap-2.5 text-sm text-[var(--admin-text-muted)] cursor-pointer">
@@ -467,6 +647,9 @@ const QueueAdmin = () => {
                   <button onClick={() => fetchQueues(selectedEventId, true)} className="ui-btn ui-btn-icon shrink-0" aria-label="Muat ulang">
                     <FiRefreshCw size={15} className={loadingQueues ? 'animate-spin' : ''} />
                   </button>
+                  <button onClick={() => setAddOpen(true)} className="ui-btn ui-btn-primary shrink-0 gap-1.5" aria-label="Tambah manual">
+                    <FiPlus size={15} /> <span className="hidden sm:inline">Tambah</span>
+                  </button>
                 </div>
               </div>
 
@@ -485,9 +668,12 @@ const QueueAdmin = () => {
                         <div className="min-w-0 flex-1">
                           <p className="font-medium truncate">{item.customer_name}</p>
                           <p className="text-sm text-[var(--admin-text-muted)] truncate">
+                            <span className="sm:hidden font-semibold text-[var(--admin-text-main)]">{meta.label} · </span>
                             <span className="font-mono">{item.customer_phone || '–'}</span>
                             {' · '}
                             {new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                            {!percentMode && item.no_voucher && ' · tanpa voucher'}
+                            {item.prints > 0 && ` · +${item.prints} print`}
                           </p>
                         </div>
                         <span className="ui-status hidden sm:inline-flex" data-tone={meta.tone}>{meta.label}</span>
@@ -512,20 +698,33 @@ const QueueAdmin = () => {
 
       {shareOpen && selectedEvent && (
         <Modal
-          title="Bagikan antrian"
+          title="Tampilan Antrian & QR"
           description={selectedEvent.name}
           onClose={() => setShareOpen(false)}
           footer={
             <>
               <button onClick={() => copy(displayUrl, 'Link layar TV disalin')} className="ui-btn"><FiCopy size={14} /> Salin link TV</button>
-              <button onClick={() => copy(guestUrl, 'Link tiket tamu disalin')} className="ui-btn ui-btn-primary"><FiCopy size={14} /> Salin link tamu</button>
+              <button onClick={() => copy(qrPageUrl, 'Link halaman QR disalin')} className="ui-btn ui-btn-primary"><FiCopy size={14} /> Salin link QR</button>
             </>
           }
         >
-          <div className="flex justify-center">
-            <div className="bg-white p-3 rounded-xl">
-              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(guestUrl)}`} alt="QR code untuk mengambil nomor antrian" width="192" height="192" className="w-48 h-48" />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="ui-card p-4 hover:border-white/20 transition-all flex flex-col items-center text-center gap-2 group">
+                <FiExternalLink className="text-[var(--admin-accent)] group-hover:scale-110 transition-transform" size={20} />
+                <span className="text-sm font-semibold">Buka Layar TV</span>
+                <span className="text-xs text-[var(--admin-text-muted)]">Papan nomor antrian + QR untuk layar TV booth</span>
+              </a>
+              <a href={qrPageUrl} target="_blank" rel="noopener noreferrer" className="ui-card p-4 hover:border-white/20 transition-all flex flex-col items-center text-center gap-2 group">
+                <FiExternalLink className="text-[var(--admin-accent)] group-hover:scale-110 transition-transform" size={20} />
+                <span className="text-sm font-semibold">Buka Halaman QR Tablet</span>
+                <span className="text-xs text-[var(--admin-text-muted)]">Tampilan QR besar untuk meja masuk / tablet</span>
+              </a>
             </div>
+
+            <p className="text-xs text-center text-[var(--admin-text-muted)] px-2">
+              Sistem antrian menggunakan QR dinamis sekali pakai. Setiap kali tamu memindai, QR di layar otomatis berganti agar antrian tidak disalahgunakan dari luar booth.
+            </p>
           </div>
 
           <button
@@ -535,6 +734,64 @@ const QueueAdmin = () => {
             Buat ulang link (cabut akses lama)
           </button>
         </Modal>
+      )}
+
+      {addOpen && (
+        <Modal
+          title="Tambah antrian manual"
+          description="Untuk tamu VIP atau tamu tanpa HP (walk-in)"
+          size="sm"
+          onClose={() => setAddOpen(false)}
+        >
+          <form onSubmit={handleAddManual} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">Nama Tamu <span className="text-[#D90429]">*</span></label>
+              <input
+                type="text"
+                required
+                autoFocus
+                placeholder="cth. Budi / Tamu VIP"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                className="ui-input w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">No WhatsApp (Opsional)</label>
+              <input
+                type="tel"
+                placeholder="08xxxxxxxxxx"
+                value={addPhone}
+                onChange={(e) => setAddPhone(e.target.value)}
+                className="ui-input w-full font-mono"
+              />
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <button type="button" onClick={() => setAddOpen(false)} className="ui-btn">Batal</button>
+              <button type="submit" disabled={addingGuest} className="ui-btn ui-btn-primary">
+                {addingGuest ? 'Menyimpan…' : 'Tambah ke Antrian'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {nextChoiceOpen && active && (
+        <Modal
+          title={`${active.queue_number} belum diselesaikan`}
+          description={`${active.customer_name} masih berstatus ${statusMeta(active.status).label.toLowerCase()}. Apa yang terjadi dengan tamu ini sebelum memanggil berikutnya?`}
+          size="sm"
+          onClose={() => setNextChoiceOpen(false)}
+          footer={
+            <>
+              <button onClick={() => setNextChoiceOpen(false)} className="ui-btn">Batal</button>
+              <button onClick={() => { setNextChoiceOpen(false); callNext('skip'); }} className="ui-btn">Tidak datang (lewati)</button>
+              <button onClick={() => { setNextChoiceOpen(false); callNext('complete'); }} className="ui-btn ui-btn-primary">
+                {active.status === 'serving' ? 'Selesai & lanjut' : 'Sudah difoto & lanjut'}
+              </button>
+            </>
+          }
+        />
       )}
 
       {confirmRegen && (

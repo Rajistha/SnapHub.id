@@ -103,7 +103,8 @@ const LiveSesi = () => {
   const sessions = event?.sessions || [];
   const voucherCount = sessions.filter((s) => !s.no_voucher).length;
   const noVoucherCount = sessions.length - voucherCount;
-  const sharing = voucherCount * (event?.share_per_voucher || 0);
+  const percent = event?.pricing_mode === 'percent';
+  const sharing = percent ? Number(event?.sharing_amount || 0) : voucherCount * (event?.share_per_voucher || 0);
 
   // Kelompokkan per tanggal, terbaru di atas; n = nomor urut sesi.
   const groups = [];
@@ -117,7 +118,12 @@ const LiveSesi = () => {
     g.items.push({ s, n: sessions.length - idx });
   });
 
-  const stats = [
+  const stats = percent
+    ? [
+        { label: 'Total sesi', value: sessions.length, icon: <FiLayers size={14} />, tone: 'text-[var(--admin-text-main)] bg-[var(--admin-hover-bg)]' },
+        { label: 'Sharing (%)', value: Number(event?.share_percent || 0), icon: <FiTag size={14} />, tone: 'text-[var(--admin-accent)] bg-[var(--admin-accent-bg)]' },
+      ]
+    : [
     { label: 'Voucher', value: voucherCount, icon: <FiTag size={14} />, tone: 'text-[var(--admin-accent)] bg-[var(--admin-accent-bg)]' },
     { label: 'Non-voucher', value: noVoucherCount, icon: <FiUser size={14} />, tone: 'text-amber-500 bg-amber-500/10' },
     { label: 'Total sesi', value: sessions.length, icon: <FiLayers size={14} />, tone: 'text-[var(--admin-text-main)] bg-[var(--admin-hover-bg)]' },
@@ -255,13 +261,13 @@ const LiveSesi = () => {
                   <AnimatedNumber value={sharing} format={formatRp} />
                 </p>
                 <span className="inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70 tabular-nums">
-                  {voucherCount} voucher <FiX size={11} /> {formatRp(event.share_per_voucher)}
+                  {percent ? `${Number(event.share_percent || 0)}% dari pemasukan sesi` : <>{voucherCount} voucher <FiX size={11} /> {formatRp(event.share_per_voucher)}</>}
                 </span>
               </div>
             </motion.div>
 
             {/* Stats */}
-            <motion.div {...fadeUp(0.24)} className="grid grid-cols-3 gap-3">
+            <motion.div {...fadeUp(0.24)} className={`grid gap-3 ${stats.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
               {stats.map((c) => (
                 <div key={c.label} className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
                   <span className={`inline-flex w-8 h-8 items-center justify-center rounded-lg ${c.tone}`}>{c.icon}</span>
@@ -274,7 +280,7 @@ const LiveSesi = () => {
             </motion.div>
 
             {/* Voucher ratio bar */}
-            {sessions.length > 0 && (
+            {!percent && sessions.length > 0 && (
               <motion.div {...fadeUp(0.28)}>
                 <div className="h-2 rounded-full bg-amber-500/30 overflow-hidden">
                   <motion.div
@@ -320,6 +326,7 @@ const LiveSesi = () => {
                                 <span className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-[var(--admin-hover-bg)] text-xs font-semibold text-[var(--admin-text-muted)] tabular-nums">
                                   {n}
                                 </span>
+                                {!percent && (
                                 <span
                                   className={`text-xs font-medium px-2.5 py-1 rounded-full ${
                                     s.no_voucher ? 'bg-amber-500/15 text-amber-500' : 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)]'
@@ -327,6 +334,7 @@ const LiveSesi = () => {
                                 >
                                   {s.no_voucher ? 'Non-voucher' : 'Voucher'}
                                 </span>
+                                )}
                               </div>
                               <span className="flex items-center gap-1.5 text-xs text-[var(--admin-text-muted)] tabular-nums">
                                 <FiClock size={12} />

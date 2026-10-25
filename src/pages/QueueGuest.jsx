@@ -2,67 +2,108 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
-import { FiBell, FiCheck, FiVolume2, FiRotateCcw, FiNavigation } from 'react-icons/fi';
+import { FiBell, FiCheck, FiVolume2, FiRotateCcw, FiNavigation, FiCamera, FiUser, FiArrowRight } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
 import usePolling from '../lib/usePolling';
 import { playChime, unlockAudio, vibrate } from '../lib/chime';
-import { ACTIVE_STATUSES } from '../lib/queueStatus';
+import { ACTIVE_STATUSES, estimateMinutes, formatEstimate, statusMeta } from '../lib/queueStatus';
 import { tokenFromSlug } from '../lib/appUrls';
-import Modal from '../components/ui/Modal';
 
-const storageKey = (token) => `snaphub_ticket_${token}`;
-const readStored = (token) => {
+const storageKey = (gate) => `snaphub_entry_${gate}`;
+const readSession = (gate) => {
   try {
-    return localStorage.getItem(storageKey(token));
+    return localStorage.getItem(storageKey(gate));
   } catch {
     return null;
   }
 };
-const writeStored = (token, id) => {
+const writeSession = (gate, session) => {
   try {
-    if (id) localStorage.setItem(storageKey(token), id);
-    else localStorage.removeItem(storageKey(token));
+    if (session) localStorage.setItem(storageKey(gate), session);
+    else localStorage.removeItem(storageKey(gate));
   } catch {
-    /* penyimpanan diblokir: tiket tetap jalan selama halaman terbuka */
+    /* penyimpanan diblokir: sesi tetap jalan selama halaman terbuka */
   }
 };
 
-const normalizePhone = (value) => {
-  let digits = value.replace(/[^0-9]/g, '');
-  if (digits.startsWith('0')) digits = `62${digits.slice(1)}`;
-  return digits;
+// Link QR hanya boleh diklaim sekali. Janji (promise) dipakai bersama agar efek React yang
+// berjalan dua kali (mode dev) tidak mengklaim dua kali dan menganggap link sudah terpakai.
+const claims = new Map();
+const claimGate = (gate) => {
+  if (!claims.has(gate)) {
+    claims.set(
+      gate,
+      supabase.rpc('queue_claim_gate', { p_gate: gate }).then(({ data, error }) => {
+        if (error) claims.delete(gate); // gangguan koneksi: boleh dicoba lagi
+        return { session: data?.session || null, error };
+      })
+    );
+  }
+  return claims.get(gate);
 };
 
 const FINISHED = ['completed', 'skipped', 'cancelled'];
 
+const Stat = ({ label, value, sub, highlight }) => (
+  <div className={`rounded-2xl px-2 py-[clamp(0.4rem,1.1vh,0.7rem)] text-center border ${highlight ? 'bg-[#D90429]/15 border-[#D90429]/50' : 'bg-white/[0.05] border-white/10'}`}>
+    <dt className="text-[10px] uppercase tracking-wider text-zinc-400 leading-tight">{label}</dt>
+    <dd className="text-[clamp(1rem,2.8vh,1.3rem)] font-bold font-mono num leading-tight mt-1">{value}</dd>
+    {sub && <p className="text-[10px] text-zinc-400 leading-tight">{sub}</p>}
+  </div>
+);
+
 const QueueGuest = () => {
   const { slug } = useParams();
-  const token = tokenFromSlug(slug);
+  const gate = tokenFromSlug(slug);
 
   const [state, setState] = useState(null); // { event, board, completed_count, ticket }
-  const [status, setStatus] = useState('loading'); // loading | ready | invalid
-  const [ticketId, setTicketId] = useState(() => readStored(token));
+  const [status, setStatus] = useState('loading'); // loading | ready | used | error
+  const [usedReason, setUsedReason] = useState('used'); // used | left
+  const [session, setSession] = useState(() => readSession(gate));
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const lastAlertRef = useRef(null);
-  const ticketIdRef = useRef(ticketId);
-  ticketIdRef.current = ticketId;
+
+  // Belum punya sesi: klaim link QR ini (hanya berhasil untuk tamu pertama yang membukanya).
+  useEffect(() => {
+    if (session) return undefined;
+    if (!gate) {
+      setStatus('used');
+      return undefined;
+    }
+    let alive = true;
+    claimGate(gate).then(({ session: claimed, error }) => {
+      if (!alive) return;
+      if (error) {
+        setStatus('error');
+        return;
+      }
+      if (!claimed) {
+        setStatus('used');
+        return;
+      }
+      writeSession(gate, claimed);
+      setSession(claimed);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [session, gate]);
 
   const refresh = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token, p_ticket_id: ticketId });
+    if (!session) return;
+    const { data, error } = await supabase.rpc('get_entry_state', { p_session: session });
     if (error) return; // koneksi sesaat putus: pertahankan tampilan terakhir
-    if (ticketIdRef.current !== ticketId) return; // jawaban usang setelah tiket dilepas/diganti
     if (!data) {
-      setStatus('invalid');
+      setStatus('used');
       return;
     }
     setState(data);
     setStatus('ready');
-  }, [token, ticketId]);
+  }, [session]);
 
   useEffect(() => {
     refresh();
@@ -79,22 +120,14 @@ const QueueGuest = () => {
   const interval = !ticket ? 5000 : myTurn || (position > 0 && position <= 3) ? 3000 : 6000;
   usePolling(refresh, interval, status === 'ready');
 
-  // Tiket yang hilang dari server (mis. dihapus admin) dilepas dari perangkat.
+  // Peringatan hanya saat status 'called' (termasuk panggilan ulang admin, yang mengembalikan status ke 'called').
+  // Status heading/serving menutup peringatan agar tidak berbunyi lagi saat sesi foto dimulai.
   useEffect(() => {
-    if (status === 'ready' && ticketId && !state?.ticket) {
-      writeStored(token, null);
-      setTicketId(null);
-    }
-  }, [status, ticketId, state, token]);
-
-  // Peringatan saat dipanggil, termasuk panggilan ulang oleh admin.
-  useEffect(() => {
-    if (!ticket || ticket.status === 'heading') {
-      if (ticket?.status === 'heading') setCallOpen(false);
+    if (ticket?.status !== 'called') {
+      if (ticket) setCallOpen(false);
       return;
     }
-    if (ticket.status !== 'called' && ticket.status !== 'serving') return;
-    const key = `${ticket.status}_${ticket.called_count}_${ticket.called_at}`;
+    const key = `${ticket.called_count}_${ticket.called_at}`;
     if (lastAlertRef.current === key) return;
     lastAlertRef.current = key;
     setCallOpen(true);
@@ -134,11 +167,19 @@ const QueueGuest = () => {
     };
   }, [liveTicket]);
 
+  // Halaman tamu harus muat satu layar penuh tanpa scroll.
+  useEffect(() => {
+    const prev = [document.documentElement.style.overflow, document.body.style.overflow];
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      [document.documentElement.style.overflow, document.body.style.overflow] = prev;
+    };
+  }, []);
+
   const validate = () => {
     const next = {};
     if (!name.trim()) next.name = 'Isi nama panggilan Anda.';
-    const digits = normalizePhone(phone);
-    if (digits.length < 9 || digits.length > 15) next.phone = 'Nomor WhatsApp tidak valid. Contoh: 08123456789';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -149,19 +190,16 @@ const QueueGuest = () => {
     if (!validate()) return;
     setSubmitting(true);
     const { data, error } = await supabase.rpc('take_queue_ticket', {
-      p_token: token,
+      p_session: session,
       p_name: name.trim(),
-      p_phone: normalizePhone(phone),
     });
     setSubmitting(false);
     if (error || !data) {
-      toast.error(error?.message?.includes('Terlalu banyak') ? 'Sedang ramai, coba lagi sebentar.' : 'Gagal mengambil nomor. Coba lagi.');
+      toast.error(error?.message?.includes('Terlalu banyak') ? 'Sedang ramai, coba lagi sebentar.' : error?.message?.includes('Sesi tidak valid') ? 'Link sudah tidak berlaku. Pindai QR lagi.' : 'Gagal mengambil nomor. Coba lagi.');
       return;
     }
-    writeStored(token, data.id);
-    setTicketId(data.id);
     setState((prev) => ({ ...(prev || {}), ticket: data }));
-    toast.success(data.existing ? `Nomor ${data.queue_number} sudah atas nama nomor ini.` : 'Nomor antrian berhasil diambil');
+    toast.success(data.existing ? `Anda sudah punya antrian ${data.queue_number}.` : 'Nomor antrian berhasil diambil');
   };
 
   const confirmHeading = async () => {
@@ -173,19 +211,21 @@ const QueueGuest = () => {
     else toast.success('Kru sudah tahu Anda menuju booth.');
   };
 
+  // Selesai/batal: sesi dilepas. Antri lagi berarti harus memindai QR terbaru di booth.
   const releaseTicket = async (cancelOnServer) => {
     if (cancelOnServer && ticket?.status === 'waiting') {
       await supabase.rpc('queue_leave', { p_ticket_id: ticket.id });
     }
-    writeStored(token, null);
-    setTicketId(null);
-    setState((prev) => (prev ? { ...prev, ticket: null } : prev));
+    writeSession(gate, null);
+    setSession(null);
+    setState(null);
     setName('');
-    setPhone('');
     setErrors({});
     setLeaveOpen(false);
     setCallOpen(false);
     lastAlertRef.current = null;
+    setUsedReason('left');
+    setStatus('used');
   };
 
   const testSound = () => {
@@ -203,12 +243,19 @@ const QueueGuest = () => {
     );
   }
 
-  if (status === 'invalid') {
+  if (status === 'used' || status === 'error') {
+    const content =
+      status === 'error'
+        ? { title: 'Koneksi bermasalah', text: 'Gagal terhubung ke antrian. Periksa internet lalu muat ulang halaman ini.' }
+        : usedReason === 'left'
+          ? { title: 'Terima kasih!', text: 'Untuk antri lagi, pindai QR terbaru yang tampil di booth.' }
+          : { title: 'QR ini sudah dipakai', text: 'Setiap tamu harus memindai QR sendiri. Pindai QR terbaru yang tampil di booth untuk mengambil nomor antrian.' };
     return (
-      <div data-theme="dark" className="min-h-screen flex items-center justify-center bg-[#0b0b0c] text-white p-6 text-center">
+      <div data-theme="dark" className="min-h-[100dvh] flex items-center justify-center bg-[#0b0b0c] text-white p-6 text-center">
         <div className="max-w-xs">
-          <h1 className="text-lg font-semibold">Link antrian tidak valid</h1>
-          <p className="text-sm text-zinc-400 mt-2">Link mungkin sudah diganti atau kedaluwarsa. Pindai ulang QR di booth atau tanyakan kru SnapHub.</p>
+          <img src="/icons.svg" alt="SnapHub" className="h-7 w-auto mx-auto mb-5" />
+          <h1 className="text-xl font-bold">{content.title}</h1>
+          <p className="text-sm text-zinc-400 mt-2">{content.text}</p>
         </div>
       </div>
     );
@@ -217,135 +264,140 @@ const QueueGuest = () => {
   const active = board.find((q) => ACTIVE_STATUSES.includes(q.status));
   const finished = ticket && FINISHED.includes(ticket.status);
 
-  const card = 'rounded-2xl border border-white/10 bg-[#141416]';
+  // Estimasi: tamu di depan (+ yang sedang dilayani) × rata-rata durasi layanan.
+  const avg = state?.avg_service_seconds;
+  const aheadForNew = waiting.length + (active ? 1 : 0);
+  const aheadForMe = ahead + (active ? 1 : 0);
+
+  const cardCls = 'rounded-3xl border border-white/10 bg-gradient-to-b from-[#1b1b1f] to-[#121214] p-[clamp(0.9rem,2.4vh,1.25rem)] shadow-[0_10px_40px_rgba(0,0,0,0.5)]';
+  const fieldGap = 'gap-[clamp(0.6rem,1.6vh,0.9rem)]';
+  const hideOnShort = '[@media(max-height:800px)_and_(max-width:1023px)]:hidden';
 
   return (
-    <div data-theme="dark" className="min-h-screen bg-[#0b0b0c] text-white flex flex-col">
+    <div data-theme="dark" className="relative h-[100dvh] overflow-hidden overscroll-none bg-[#0b0b0c] text-white flex flex-col">
       <Toaster position="top-center" toastOptions={{ style: { background: '#1c1c1f', color: '#fff', border: '1px solid #2a2a2e' } }} />
 
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0b0b0c]/95 backdrop-blur px-5 py-3.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <img src="/icons.svg" alt="" className="h-7 w-auto shrink-0" />
-          <div className="min-w-0">
-            <h1 className="text-sm font-semibold truncate">{state?.event?.name || 'SnapHub Photobooth'}</h1>
-            <p className="text-xs text-zinc-400">Antrian photobooth</p>
-          </div>
-        </div>
-        <button onClick={testSound} className="ui-btn ui-btn-sm shrink-0 text-zinc-200 border-white/15 hover:bg-white/10">
-          <FiVolume2 size={14} /> Tes suara
+      {/* Cahaya latar */}
+      <div aria-hidden="true" className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[28rem] h-[28rem] lg:left-1/3 lg:w-[44rem] lg:h-[44rem] rounded-full bg-[#D90429]/25 blur-[110px]" />
+
+      <header className="relative shrink-0 px-5 lg:px-12 pt-[max(0.9rem,env(safe-area-inset-top))] lg:pt-8 flex items-center justify-between">
+        <img src="/icons.svg" alt="SnapHub" className="h-6 lg:h-8 w-auto" />
+        <button onClick={testSound} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/10" aria-label="Tes suara dan getar">
+          <FiVolume2 size={13} /> Tes suara
         </button>
       </header>
 
-      <main className="flex-1 w-full max-w-md mx-auto px-4 py-6 flex flex-col justify-center">
+      <div className="relative flex-1 min-h-0 w-full max-w-6xl mx-auto flex flex-col justify-center gap-5 pb-[max(4.5rem,env(safe-area-inset-bottom))] lg:pb-0 lg:flex-row lg:items-center lg:justify-center lg:gap-20 lg:px-12">
+      {/* ── Hero: nama acara + status ── */}
+      <section className="relative flex-none lg:flex-1 min-h-0 flex flex-col items-center justify-center text-center px-5 lg:px-0 lg:items-start lg:text-left lg:justify-center gap-[clamp(0.4rem,1.5vh,1rem)] lg:gap-6" aria-live="polite">
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#D90429]/40 bg-[#D90429]/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200">
+          <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-rose-400" /></span>
+          Antrian photobooth
+        </span>
+
+        <h1 className="max-w-sm lg:max-w-xl text-[clamp(1.35rem,4.4vh,2rem)] lg:text-[clamp(2.4rem,4.2vw,3.75rem)] font-extrabold leading-[1.1] tracking-tight line-clamp-3 break-words bg-gradient-to-b from-white to-rose-200 bg-clip-text text-transparent">
+          {state?.event?.name || 'SnapHub Photobooth'}
+        </h1>
+        <div className="h-1 w-12 rounded-full bg-[#D90429]" aria-hidden="true" />
+
         {!ticket ? (
-          <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${card} p-6`}>
-            <h2 className="text-xl font-semibold">Ambil nomor antrian</h2>
-            <p className="text-sm text-zinc-400 mt-1">Tidak perlu berdiri menunggu. HP Anda akan berbunyi saat giliran tiba.</p>
-
-            <dl className="grid grid-cols-2 gap-4 my-5 py-4 border-y border-white/10">
-              <div>
-                <dt className="text-xs text-zinc-400">Sedang difoto</dt>
-                <dd className="text-xl font-semibold font-mono mt-0.5">{active ? active.queue_number : '–'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-zinc-400">Sedang antre</dt>
-                <dd className="text-xl font-semibold mt-0.5 num">{waiting.length} <span className="text-sm font-normal text-zinc-400">orang</span></dd>
-              </div>
-            </dl>
-
-            <form onSubmit={takeTicket} className="space-y-4" noValidate>
-              <div>
-                <label htmlFor="guest-name" className="block text-sm font-medium text-zinc-200 mb-1.5">Nama panggilan</label>
-                <input
-                  id="guest-name" name="nickname" type="text" autoComplete="nickname" maxLength={40}
-                  value={name} onChange={(e) => setName(e.target.value)}
-                  aria-invalid={!!errors.name} aria-describedby={errors.name ? 'guest-name-err' : undefined}
-                  placeholder="Contoh: Rina & teman"
-                  className="ui-input bg-white/5 border-white/15 text-white"
-                />
-                {errors.name && <p id="guest-name-err" role="alert" className="text-sm text-red-400 mt-1.5">{errors.name}</p>}
-              </div>
-              <div>
-                <label htmlFor="guest-phone" className="block text-sm font-medium text-zinc-200 mb-1.5">Nomor WhatsApp</label>
-                <input
-                  id="guest-phone" name="tel" type="tel" inputMode="tel" autoComplete="tel" maxLength={20}
-                  value={phone} onChange={(e) => setPhone(e.target.value)}
-                  aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'guest-phone-err' : 'guest-phone-hint'}
-                  placeholder="08123456789"
-                  className="ui-input bg-white/5 border-white/15 text-white"
-                />
-                {errors.phone ? (
-                  <p id="guest-phone-err" role="alert" className="text-sm text-red-400 mt-1.5">{errors.phone}</p>
-                ) : (
-                  <p id="guest-phone-hint" className="text-sm text-zinc-400 mt-1.5">Hanya dipakai kru untuk mengingatkan giliran Anda.</p>
-                )}
-              </div>
-              <button type="submit" disabled={submitting} className="ui-btn ui-btn-primary ui-btn-lg w-full">
-                {submitting ? 'Memproses…' : 'Ambil nomor'}
-              </button>
-            </form>
-          </motion.section>
+          <dl className="grid grid-cols-3 gap-2.5 lg:gap-4 w-full max-w-sm lg:max-w-md">
+            <Stat label="Giliran" value={active ? active.queue_number : '–'} />
+            <Stat label="Menunggu" value={`${waiting.length}`} sub="orang" />
+            <Stat label="Estimasi" value={aheadForNew === 0 ? 'Langsung' : formatEstimate(estimateMinutes(aheadForNew, avg)).replace('± ', '')} highlight />
+          </dl>
         ) : (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className={`${card} p-6 text-center ${myTurn ? 'border-emerald-400/70' : ''}`}
-            aria-live="polite"
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+            className={`w-full max-w-sm lg:max-w-md rounded-3xl border bg-white/[0.04] backdrop-blur px-5 py-[clamp(0.8rem,2.2vh,1.4rem)] lg:py-8 lg:text-center ${myTurn ? 'border-emerald-400/70 shadow-[0_0_40px_rgba(52,211,153,0.2)]' : 'border-white/10'}`}
           >
-            <p className="text-sm text-zinc-400">Nomor antrian Anda</p>
-            <p className="text-7xl font-bold font-mono tracking-tight my-2 num">{ticket.queue_number}</p>
-            <p className="text-base font-medium text-zinc-200">{ticket.customer_name}</p>
-
-            <div className="my-5">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-400">Nomor antrian Anda</p>
+            <p className="font-extrabold font-mono tracking-tight leading-none my-[clamp(0.15rem,0.8vh,0.5rem)] num" style={{ fontSize: 'clamp(3.4rem, 13vh, 6rem)' }}>{ticket.queue_number}</p>
+            <p className="text-sm font-medium text-zinc-200 truncate">{ticket.customer_name}</p>
+            <div className="mt-[clamp(0.5rem,1.4vh,0.9rem)]">
               {myTurn ? (
-                <p className="inline-flex items-center gap-2 rounded-full bg-emerald-400 text-black font-semibold text-sm px-4 py-2">
-                  {ticket.status === 'heading' ? <><FiNavigation size={15} /> Menuju booth</> : <><FiBell size={15} /> Giliran Anda sekarang</>}
+                <p className="inline-flex items-center gap-2 rounded-full bg-emerald-400 text-black font-semibold text-sm px-4 py-1.5">
+                  {ticket.status === 'serving'
+                    ? <><FiCamera size={15} /> Sedang difoto</>
+                    : ticket.status === 'heading'
+                      ? <><FiNavigation size={15} /> Menuju booth</>
+                      : <><FiBell size={15} /> Giliran Anda sekarang</>}
                 </p>
               ) : finished ? (
                 <p className="text-sm font-medium text-zinc-300">
-                  {ticket.status === 'completed' ? 'Sesi foto Anda sudah selesai. Terima kasih!' : ticket.status === 'skipped' ? 'Nomor Anda dilewati. Temui kru bila masih ingin berfoto.' : 'Nomor ini sudah dibatalkan.'}
+                  {ticket.status === 'completed' ? 'Sesi foto selesai. Terima kasih!' : ticket.status === 'skipped' ? 'Nomor Anda dilewati. Temui kru bila masih ingin berfoto.' : 'Nomor ini sudah dibatalkan.'}
                 </p>
               ) : position > 0 && position <= 2 ? (
-                <p className="inline-flex rounded-full border border-amber-300/50 text-amber-200 font-medium text-sm px-4 py-2">Segera merapat ke booth</p>
+                <p className="inline-flex rounded-full border border-amber-300/50 bg-amber-300/10 text-amber-200 font-medium text-sm px-4 py-1.5">Segera merapat ke booth</p>
               ) : (
                 <p className="text-sm text-zinc-400">Menunggu giliran</p>
               )}
             </div>
+          </motion.div>
+        )}
+      </section>
 
-            <dl className="text-left rounded-xl bg-white/5 divide-y divide-white/10 text-sm">
-              <div className="flex items-center justify-between px-4 py-3">
-                <dt className="text-zinc-400">Sedang difoto</dt>
-                <dd className="font-mono font-semibold">{active ? active.queue_number : '–'}</dd>
-              </div>
-              {ticket.status === 'waiting' && (
-                <div className="flex items-center justify-between px-4 py-3">
-                  <dt className="text-zinc-400">Antrian di depan Anda</dt>
-                  <dd className="font-semibold num">{ahead} orang</dd>
+      {/* ── Kartu aksi (form / info tiket) ── */}
+      <div className="relative shrink-0 px-4 lg:px-0 lg:w-[27rem]">
+        {!ticket ? (
+          <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>
+            <h2 className="text-[clamp(1.05rem,2.8vh,1.3rem)] font-bold">Ambil nomor antrian</h2>
+            <p className={`text-xs text-zinc-400 mt-0.5 ${hideOnShort}`}>Tidak perlu berdiri menunggu. HP Anda berbunyi saat giliran tiba.</p>
+
+            <form onSubmit={takeTicket} className={`mt-[clamp(0.6rem,1.8vh,1rem)] flex flex-col ${fieldGap}`} noValidate>
+              <div>
+                <label htmlFor="guest-name" className="block text-xs font-semibold text-zinc-300 mb-1">Nama panggilan</label>
+                <div className="relative">
+                  <FiUser size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+                  <input
+                    id="guest-name" name="nickname" type="text" autoComplete="nickname" maxLength={40}
+                    value={name} onChange={(e) => setName(e.target.value)}
+                    aria-invalid={!!errors.name} aria-describedby={errors.name ? 'guest-name-err' : undefined}
+                    placeholder="Contoh: Rina & teman"
+                    className="ui-input bg-white/5 border-white/15 text-white pl-10"
+                  />
                 </div>
+                {errors.name && <p id="guest-name-err" role="alert" className="text-xs text-red-400 mt-1">{errors.name}</p>}
+              </div>
+              <button type="submit" disabled={submitting} className="ui-btn ui-btn-primary ui-btn-lg w-full shadow-lg shadow-[#D90429]/30">
+                {submitting ? 'Memproses…' : <>Ambil nomor <FiArrowRight size={18} /></>}
+              </button>
+            </form>
+          </motion.section>
+        ) : (
+          <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>
+            <dl className={`grid gap-2.5 ${ticket.status === 'waiting' ? 'grid-cols-3' : 'grid-cols-1'}`}>
+              <Stat label="Giliran" value={active ? active.queue_number : '–'} sub={active ? statusMeta(active.status).label : undefined} />
+              {ticket.status === 'waiting' && (
+                <>
+                  <Stat label="Di depan Anda" value={`${ahead}`} sub="orang" />
+                  <Stat label="Estimasi" value={formatEstimate(estimateMinutes(aheadForMe, avg)).replace('± ', '')} highlight />
+                </>
               )}
             </dl>
 
-            <p className="text-sm text-zinc-400 mt-5">
+            <p className={`mt-[clamp(0.6rem,1.6vh,1rem)] text-xs text-center text-zinc-400 ${hideOnShort}`}>
               {myTurn
                 ? 'Tunjukkan nomor ini ke kru di booth.'
                 : finished
                   ? ''
-                  : 'Biarkan halaman ini terbuka. HP akan berbunyi dan bergetar saat giliran Anda.'}
+                  : 'Estimasi hanya perkiraan. Biarkan halaman ini terbuka, HP akan berbunyi saat giliran Anda.'}
             </p>
 
-            <div className="mt-5">
+            <div className="mt-[clamp(0.5rem,1.4vh,0.9rem)] flex justify-center">
               {finished ? (
-                <button onClick={() => releaseTicket(false)} className="ui-btn w-full text-white border-white/20 hover:bg-white/10">Ambil nomor baru</button>
+                <button onClick={() => releaseTicket(false)} className="ui-btn ui-btn-primary ui-btn-lg w-full">Selesai</button>
               ) : ticket.status === 'waiting' ? (
-                <button onClick={() => setLeaveOpen(true)} className="ui-btn ui-btn-sm ui-btn-ghost text-zinc-400 mx-auto">
+                <button onClick={() => setLeaveOpen(true)} className="ui-btn ui-btn-sm ui-btn-ghost text-zinc-400">
                   <FiRotateCcw size={14} /> Batalkan nomor
                 </button>
               ) : null}
             </div>
           </motion.section>
         )}
-      </main>
-
-      <footer className="px-4 py-4 text-center text-xs text-zinc-500">SnapHub.id</footer>
+        <p className="mt-2 text-center text-[11px] text-zinc-600">SnapHub.id</p>
+      </div>
+      </div>
 
       <AnimatePresence>
         {callOpen && ticket && (
@@ -366,20 +418,26 @@ const QueueGuest = () => {
         )}
       </AnimatePresence>
 
-      {leaveOpen && (
-        <Modal
-          title="Batalkan nomor ini?"
-          description={`Nomor ${ticket?.queue_number} akan dilepas dan Anda keluar dari antrian.`}
-          size="sm"
-          onClose={() => setLeaveOpen(false)}
-          footer={
-            <>
-              <button onClick={() => setLeaveOpen(false)} className="ui-btn">Tidak</button>
-              <button onClick={() => releaseTicket(true)} className="ui-btn ui-btn-solid-danger">Ya, batalkan</button>
-            </>
-          }
-        />
-      )}
+      <AnimatePresence>
+        {leaveOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 pb-24" role="alertdialog" aria-modal="true" aria-label="Batalkan nomor">
+            <div className="absolute inset-0 bg-black/75" onClick={() => setLeaveOpen(false)} aria-hidden="true" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-gradient-to-b from-[#1b1b1f] to-[#121214] p-6 text-center shadow-2xl"
+            >
+              <h2 className="text-lg font-bold">Batalkan nomor ini?</h2>
+              <p className="text-sm text-zinc-400 mt-2">
+                Nomor <span className="font-mono font-semibold text-white">{ticket?.queue_number}</span> akan dilepas dan Anda keluar dari antrian.
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button type="button" autoFocus onClick={() => setLeaveOpen(false)} className="ui-btn ui-btn-lg text-white border-white/20 hover:bg-white/10">Tidak</button>
+                <button type="button" onClick={() => releaseTicket(true)} className="ui-btn ui-btn-lg ui-btn-solid-danger">Ya, batalkan</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

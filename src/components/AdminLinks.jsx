@@ -7,6 +7,7 @@ import {
 } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
 import { DEFAULT_LINKTREE_PROFILE, DEFAULT_LINKS } from '../lib/linktreeDefaults';
+import { removeUnusedFiles } from '../lib/storageCleanup';
 import Modal from './ui/Modal';
 
 const PRESET_ICONS = [
@@ -182,6 +183,12 @@ const AdminLinks = () => {
       }
       setDirty(false);
       toast.success('Tersimpan. Halaman bio sudah diperbarui.');
+      // Hapus logo upload yang sudah tidak dipakai link/profil mana pun (abaikan yang baru <10 menit / sedang di form)
+      removeUnusedFiles('client-logos', {
+        prefix: 'linktree_logo_',
+        inUse: [JSON.stringify({ profile, links: cleanLinks }), form.logoUrl],
+        minAgeMs: 10 * 60 * 1000,
+      });
     } catch (err) {
       console.error(err);
       toast.error(`Gagal menyimpan: ${err.message || 'cek koneksi internet'}`);

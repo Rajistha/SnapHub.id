@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { FiPrinter, FiMaximize2, FiMinimize2 } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
+import usePolling from '../lib/usePolling';
 import { queueBaseUrl, tokenFromSlug } from '../lib/appUrls';
 
 // Halaman QR besar untuk ditampilkan di tablet/monitor atau dicetak sebagai standing banner.
@@ -9,20 +10,25 @@ const QueueQr = () => {
   const { slug } = useParams();
   const token = tokenFromSlug(slug);
   const [event, setEvent] = useState(null);
+  const [gate, setGate] = useState(null);
   const [invalid, setInvalid] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    supabase.rpc('get_queue_state', { p_token: token }).then(({ data }) => {
-      if (!active) return;
-      if (data?.event) setEvent(data.event);
-      else if (data === null) setInvalid(true);
-    });
-    return () => {
-      active = false;
-    };
+  const refresh = useCallback(async () => {
+    const [stateRes, gateRes] = await Promise.all([
+      supabase.rpc('get_queue_state', { p_token: token }),
+      supabase.rpc('queue_current_gate', { p_token: token }),
+    ]);
+    if (stateRes.data?.event) setEvent(stateRes.data.event);
+    else if (stateRes.data === null) setInvalid(true);
+
+    if (gateRes.data) setGate(gateRes.data);
   }, [token]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+  usePolling(refresh, 3000, !invalid);
 
   useEffect(() => {
     const onChange = () => setFullscreen(!!document.fullscreenElement);
@@ -35,7 +41,7 @@ const QueueQr = () => {
     else document.documentElement.requestFullscreen().catch(() => {});
   };
 
-  const guestUrl = `${queueBaseUrl()}/${slug || ''}`;
+  const guestUrl = `${queueBaseUrl()}/${gate || slug || ''}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=640x640&margin=0&data=${encodeURIComponent(guestUrl)}`;
 
   if (invalid) {
@@ -77,7 +83,7 @@ const QueueQr = () => {
         </div>
 
         <ol className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left max-w-3xl w-full">
-          {['Pindai QR', 'Isi nama & WhatsApp', 'HP berbunyi saat giliran Anda'].map((step, i) => (
+          {['Pindai QR', 'Isi nama panggilan', 'HP berbunyi saat giliran Anda'].map((step, i) => (
             <li key={step} className="flex items-center gap-3 rounded-xl border border-white/10 px-4 py-3 print:border-zinc-300">
               <span className="w-8 h-8 shrink-0 rounded-full bg-[#D90429] text-white font-semibold flex items-center justify-center num">{i + 1}</span>
               <span className="font-medium">{step}</span>

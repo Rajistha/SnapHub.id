@@ -73,3 +73,51 @@ export const vibrate = () => {
     /* abaikan */
   }
 };
+
+// ── Pengumuman suara manusia (Web Speech API bawaan browser, tanpa biaya & tanpa server) ──
+const speechSupported = () => typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+
+// Suara Indonesia terbaik yang tersedia di perangkat; bila tidak ada, browser memakai suara bawaannya.
+const pickVoice = () => {
+  const voices = window.speechSynthesis.getVoices();
+  return (
+    voices.find((v) => v.lang === 'id-ID' && /google|natural|online/i.test(v.name)) ||
+    voices.find((v) => v.lang === 'id-ID') ||
+    voices.find((v) => v.lang?.toLowerCase().startsWith('id')) ||
+    null
+  );
+};
+
+export const speak = (text, { repeat = 1, rate = 0.92 } = {}) => {
+  if (!speechSupported()) return false;
+  try {
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    for (let i = 0; i < repeat; i += 1) {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'id-ID';
+      u.rate = rate;
+      u.volume = 1;
+      const voice = pickVoice();
+      if (voice) u.voice = voice;
+      synth.speak(u);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// "A-05" → "A 5" agar dibaca natural ("A lima"), bukan "A strip nol lima".
+const spokenNumber = (queueNumber) => {
+  const m = /^([A-Za-z]+)[-\s]?0*(\d+)$/.exec(queueNumber || '');
+  return m ? `${m[1]} ${m[2]}` : String(queueNumber || '');
+};
+
+// Nada panggilan lalu suara manusia, diulang dua kali.
+export const announceQueue = (queueNumber, name) => {
+  playChime(1);
+  const who = name ? `${name}, ` : '';
+  const text = `Nomor antrian ${spokenNumber(queueNumber)}. ${who}silakan menuju photobooth.`;
+  setTimeout(() => speak(text, { repeat: 2 }), 1800);
+};

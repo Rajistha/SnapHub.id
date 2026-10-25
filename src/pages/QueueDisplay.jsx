@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { FiMaximize2, FiMinimize2, FiVolume2, FiVolumeX } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
 import usePolling from '../lib/usePolling';
-import { playChime, unlockAudio } from '../lib/chime';
+import { announceQueue, playChime, speak, unlockAudio } from '../lib/chime';
 import { ACTIVE_STATUSES } from '../lib/queueStatus';
 import { queueBaseUrl, tokenFromSlug } from '../lib/appUrls';
 
@@ -27,6 +27,7 @@ const QueueDisplay = () => {
   const token = tokenFromSlug(slug);
 
   const [state, setState] = useState(null);
+  const [gate, setGate] = useState(null);
   const [invalid, setInvalid] = useState(false);
   const [offline, setOffline] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
@@ -34,14 +35,19 @@ const QueueDisplay = () => {
   const lastCallRef = useRef(null);
 
   const refresh = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token });
-    if (error) {
+    const [stateRes, gateRes] = await Promise.all([
+      supabase.rpc('get_queue_state', { p_token: token }),
+      supabase.rpc('queue_current_gate', { p_token: token }),
+    ]);
+    if (stateRes.error) {
       setOffline(true);
       return;
     }
     setOffline(false);
-    if (!data) setInvalid(true);
-    else setState(data);
+    if (!stateRes.data) setInvalid(true);
+    else setState(stateRes.data);
+
+    if (gateRes.data) setGate(gateRes.data);
   }, [token]);
 
   useEffect(() => {
@@ -59,8 +65,8 @@ const QueueDisplay = () => {
     if (!callKey || callKey === lastCallRef.current) return;
     const firstLoad = lastCallRef.current === null;
     lastCallRef.current = callKey;
-    if (soundOn && !firstLoad) playChime(1);
-  }, [callKey, soundOn]);
+    if (soundOn && !firstLoad && active) announceQueue(active.queue_number, active.name);
+  }, [callKey, soundOn, active]);
 
   useEffect(() => {
     const onChange = () => setFullscreen(!!document.fullscreenElement);
@@ -71,7 +77,10 @@ const QueueDisplay = () => {
   const toggleSound = () => {
     unlockAudio();
     setSoundOn((on) => {
-      if (!on) playChime(0.6);
+      if (!on) {
+        playChime(0.6);
+        setTimeout(() => speak('Suara panggilan aktif'), 1800);
+      }
       return !on;
     });
   };
@@ -81,8 +90,8 @@ const QueueDisplay = () => {
     else document.documentElement.requestFullscreen().catch(() => {});
   };
 
-  const guestUrl = `${queueBaseUrl()}/${slug || ''}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(guestUrl)}`;
+  const guestUrl = `${queueBaseUrl()}/${gate || slug || ''}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&margin=8&data=${encodeURIComponent(guestUrl)}`;
 
   if (invalid) {
     return (
@@ -96,7 +105,6 @@ const QueueDisplay = () => {
   }
 
   const heading = active?.status === 'heading';
-
   return (
     <div className="min-h-screen bg-[#08080a] text-white flex flex-col p-6 sm:p-10 select-none">
       <header className="flex items-center justify-between gap-6 pb-6 border-b border-white/10">
@@ -120,16 +128,10 @@ const QueueDisplay = () => {
         </div>
       </header>
 
-      {!soundOn && (
-        <p className="mt-4 text-sm text-amber-200 border border-amber-300/30 rounded-lg px-4 py-2.5">
-          Suara panggilan belum aktif. Tekan ikon speaker di kanan atas satu kali agar browser mengizinkan bunyi.
-        </p>
-      )}
-
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 py-6">
         <section className="lg:col-span-2 rounded-3xl border border-white/10 bg-[#111114] p-8 sm:p-12 flex flex-col" aria-live="polite">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold text-zinc-300">{heading ? 'Tamu sedang menuju booth' : 'Sekarang giliran'}</h2>
+            <h2 className="text-lg font-semibold text-zinc-300">{active?.status === 'serving' ? 'Sedang difoto' : heading ? 'Tamu sedang menuju booth' : 'Sekarang giliran'}</h2>
             <p className="text-lg text-zinc-400 num">{waiting.length} menunggu</p>
           </div>
 
@@ -138,7 +140,15 @@ const QueueDisplay = () => {
               <>
                 <p className="font-bold font-mono leading-none tracking-tight num" style={{ fontSize: 'clamp(6rem, 17vw, 14rem)' }}>{active.queue_number}</p>
                 <p className="text-3xl font-medium mt-6 text-zinc-100">{active.name}</p>
-                <p className="text-lg text-zinc-400 mt-2">Silakan menuju photobooth</p>
+                <p className={`mt-5 inline-flex items-center gap-3 rounded-full px-8 py-3 text-2xl sm:text-3xl font-bold ${
+                  active.status === 'serving' ? 'bg-emerald-400 text-black' : heading ? 'bg-sky-400 text-black' : 'bg-[#D90429] text-white'
+                }`}>
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-current" />
+                  </span>
+                  {active.status === 'serving' ? 'Sesi foto sedang berlangsung' : heading ? 'Menuju photobooth' : 'Silakan menuju photobooth'}
+                </p>
               </>
             ) : (
               <>
@@ -168,7 +178,7 @@ const QueueDisplay = () => {
 
           <section className="rounded-3xl border border-white/10 bg-[#111114] p-6 flex items-center gap-5">
             <div className="bg-white rounded-xl p-1.5 shrink-0">
-              <img src={qrUrl} alt="QR untuk mengambil nomor antrian" width="112" height="112" className="w-28 h-28" />
+              <img src={qrUrl} alt="QR untuk mengambil nomor antrian" width="176" height="176" className="w-36 h-36 xl:w-44 xl:h-44" />
             </div>
             <div>
               <p className="text-lg font-semibold">Ambil nomor lewat HP</p>
