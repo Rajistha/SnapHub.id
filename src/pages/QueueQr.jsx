@@ -11,7 +11,13 @@ const QueueQr = () => {
   const { slug } = useParams();
   const token = tokenFromSlug(slug);
   const [event, setEvent] = useState(null);
-  const [gate, setGate] = useState(null);
+  const [gate, setGate] = useState(() => {
+    try {
+      return localStorage.getItem(`snaphub_gate_${token}`) || null;
+    } catch {
+      return null;
+    }
+  });
   const [invalid, setInvalid] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -24,7 +30,12 @@ const QueueQr = () => {
     if (stateRes.data?.event) setEvent(stateRes.data.event);
     else if (stateRes.data === null) setInvalid(true);
 
-    if (gateRes.data) setGate(gateRes.data);
+    if (gateRes.data) {
+      setGate(gateRes.data);
+      try {
+        localStorage.setItem(`snaphub_gate_${token}`, gateRes.data);
+      } catch {}
+    }
   }, [token]);
 
   useEffect(() => {
@@ -64,13 +75,12 @@ const QueueQr = () => {
     else document.documentElement.requestFullscreen().catch(() => {});
   };
 
-  const guestUrl = `${queueBaseUrl()}/${gate || slug || ''}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=640x640&margin=0&data=${encodeURIComponent(guestUrl)}`;
+  const guestUrl = gate ? `${queueBaseUrl()}/${gate}` : slug ? `${queueBaseUrl()}/${slug}` : '';
 
   useEffect(() => {
     if (!guestUrl) return;
     let alive = true;
-    QRCode.toDataURL(guestUrl, { width: 640, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+    QRCode.toDataURL(guestUrl, { width: 400, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
       .then((url) => {
         if (alive) setQrDataUrl(url);
       })
@@ -124,12 +134,16 @@ const QueueQr = () => {
           Pindai QR dengan kamera HP, isi nama, lalu tunggu dipanggil santai tanpa antre berdiri.
         </p>
 
-        <div className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-4 my-2 sm:my-3 shadow-2xl shadow-rose-950/20">
-          <img
-            src={qrDataUrl || qrUrl}
-            alt="QR code untuk mengambil nomor antrian"
-            className="block w-[clamp(10rem,35vh,20rem)] h-[clamp(10rem,35vh,20rem)] object-contain rounded-xl"
-          />
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-4 my-2 sm:my-3 shadow-2xl shadow-rose-950/20 w-[clamp(10rem,35vh,20rem)] h-[clamp(10rem,35vh,20rem)] flex items-center justify-center">
+          {qrDataUrl ? (
+            <img
+              src={qrDataUrl}
+              alt="QR code untuk mengambil nomor antrian"
+              className="block w-full h-full object-contain rounded-xl"
+            />
+          ) : (
+            <div className="w-10 h-10 border-4 border-[#D90429] border-t-transparent rounded-full animate-spin" />
+          )}
         </div>
 
         <ol className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 text-left max-w-2xl w-full">

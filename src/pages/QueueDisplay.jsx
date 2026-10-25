@@ -32,7 +32,13 @@ const QueueDisplay = () => {
   const token = tokenFromSlug(slug);
 
   const [state, setState] = useState(null);
-  const [gate, setGate] = useState(null);
+  const [gate, setGate] = useState(() => {
+    try {
+      return localStorage.getItem(`snaphub_gate_${token}`) || null;
+    } catch {
+      return null;
+    }
+  });
   const [invalid, setInvalid] = useState(false);
   const [offline, setOffline] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
@@ -52,7 +58,12 @@ const QueueDisplay = () => {
     if (!stateRes.data) setInvalid(true);
     else setState(stateRes.data);
 
-    if (gateRes.data) setGate(gateRes.data);
+    if (gateRes.data) {
+      setGate(gateRes.data);
+      try {
+        localStorage.setItem(`snaphub_gate_${token}`, gateRes.data);
+      } catch {}
+    }
   }, [token]);
 
   useEffect(() => {
@@ -129,14 +140,13 @@ const QueueDisplay = () => {
     else document.documentElement.requestFullscreen().catch(() => {});
   };
 
-  const guestUrl = `${queueBaseUrl()}/${gate || slug || ''}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=480x480&margin=8&data=${encodeURIComponent(guestUrl)}`;
+  const guestUrl = gate ? `${queueBaseUrl()}/${gate}` : slug ? `${queueBaseUrl()}/${slug}` : '';
   const [qrDataUrl, setQrDataUrl] = useState('');
 
   useEffect(() => {
     if (!guestUrl) return;
     let alive = true;
-    QRCode.toDataURL(guestUrl, { width: 480, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+    QRCode.toDataURL(guestUrl, { width: 360, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
       .then((url) => {
         if (alive) setQrDataUrl(url);
       })
@@ -295,12 +305,16 @@ const QueueDisplay = () => {
 
           {/* Card QR Code */}
           <section className="rounded-2xl sm:rounded-3xl border border-white/10 bg-[#111114] p-3.5 sm:p-5 shrink-0 flex items-center gap-4 sm:gap-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-3 shrink-0 shadow-xl">
-              <img
-                src={qrDataUrl || qrUrl}
-                alt="QR untuk mengambil nomor antrian"
-                className="w-[clamp(8.5rem,24vh,15rem)] h-[clamp(8.5rem,24vh,15rem)] rounded-xl sm:rounded-2xl object-contain block"
-              />
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-2.5 sm:p-3 shrink-0 shadow-xl w-[clamp(8.5rem,24vh,15rem)] h-[clamp(8.5rem,24vh,15rem)] flex items-center justify-center">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="QR untuk mengambil nomor antrian"
+                  className="w-full h-full rounded-xl sm:rounded-2xl object-contain block"
+                />
+              ) : (
+                <div className="w-8 h-8 border-3 border-[#D90429] border-t-transparent rounded-full animate-spin" />
+              )}
             </div>
             <div className="min-w-0">
               <span className="inline-block text-xs sm:text-sm lg:text-base font-bold text-rose-400 uppercase tracking-wider mb-1">

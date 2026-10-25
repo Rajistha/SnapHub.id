@@ -158,26 +158,39 @@ set search_path = public
 as $$
 declare
   v_entry public.queue_entries%rowtype;
+  v_ev_id bigint;
+  v_new_gate text;
 begin
-  if p_gate is null or length(p_gate) not between 8 and 40 then return null; end if;
+  if p_gate is null or length(p_gate) not between 8 and 64 then return null; end if;
 
   select * into v_entry from public.queue_entries
   where gate = p_gate and claimed_at is null
   for update;
 
-  if not found then return null; end if; -- sudah dipakai tamu lain / tidak valid
+  if not found then
+    -- Dukung fallback bila link yang dipindai adalah queue_token event langsung
+    v_ev_id := public.queue_event_id(p_gate);
+    if v_ev_id is not null then
+      v_new_gate := substr(replace(gen_random_uuid()::text, '-', ''), 1, 16);
+      insert into public.queue_entries (gate, event_id, claimed_at)
+      values (v_new_gate, v_ev_id, now())
+      returning * into v_entry;
+    else
+      return null;
+    end if;
+  else
+    -- Batasi lonjakan klaim per event (anti-spam)
+    if (select count(*) from public.queue_entries
+        where event_id = v_entry.event_id and claimed_at > now() - interval '1 minute') >= 60 then
+      raise exception 'Terlalu banyak permintaan, coba lagi sebentar';
+    end if;
 
-  -- Batasi lonjakan klaim per event (anti-spam)
-  if (select count(*) from public.queue_entries
-      where event_id = v_entry.event_id and claimed_at > now() - interval '1 minute') >= 60 then
-    raise exception 'Terlalu banyak permintaan, coba lagi sebentar';
+    update public.queue_entries set claimed_at = now() where gate = p_gate;
+
+    -- QR di layar otomatis berganti ke gate baru
+    insert into public.queue_entries (gate, event_id)
+    values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 16), v_entry.event_id);
   end if;
-
-  update public.queue_entries set claimed_at = now() where gate = p_gate;
-
-  -- QR di layar otomatis berganti ke gate baru
-  insert into public.queue_entries (gate, event_id)
-  values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 16), v_entry.event_id);
 
   -- Kembalikan sesi sekaligus data antrian awal agar HP tamu tidak perlu request 2 kali (muat instan)
   return jsonb_build_object(
@@ -189,13 +202,15 @@ end $$;
 grant execute on function public.queue_claim_gate(text) to anon, authenticated;
 
 -- ── Ambil nomor: hanya lewat sesi hasil scan, satu sesi = satu nomor ────────
+drop function if exists public.take_queue_ticket(uuid, text);
+drop function if exists public.take_queue_ticket(uuid);
 drop function if exists public.take_queue_ticket(text, text, text);
 drop function if exists public.take_queue_ticket(text, text);
 
--- Nama tamu bersifat opsional (default kosong ''), tiket tetap terbit secara 1-tap instan
-alter table public.event_queues alter column customer_name set default '';
+-- Nama tamu bersifat opsional (default 'Tamu'), tiket tetap terbit secara 1-tap instan
+alter table public.event_queues alter column customer_name set default 'Tamu';
 
-create or replace function public.take_queue_ticket(p_session uuid, p_name text default '')
+create or replace function public.take_queue_ticket(p_session uuid, p_name text default 'Tamu')
 returns jsonb
 language plpgsql
 security definer
@@ -229,6 +244,8 @@ begin
   end if;
 
   select coalesce(max(seq_number), 0) + 1 into v_next from public.event_queues where event_id = v_entry.event_id;
+
+  if length(v_name) = 0 then v_name := 'Tamu'; end if;
 
   insert into public.event_queues (event_id, queue_number, seq_number, customer_name, customer_phone, status)
   values (v_entry.event_id, 'A-' || lpad(v_next::text, 2, '0'), v_next, v_name, '', 'waiting')

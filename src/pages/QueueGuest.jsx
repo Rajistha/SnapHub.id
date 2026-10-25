@@ -312,27 +312,56 @@ const QueueGuest = () => {
     unlockAudio();
     if (submitting) return;
     setSubmitting(true);
-    const { data, error } = await supabase.rpc('take_queue_ticket', {
-      p_session: session,
-      p_name: '',
-    });
-    setSubmitting(false);
-    if (error || !data) {
-      toast.error(error?.message?.includes('Terlalu banyak') ? 'Sedang ramai, coba lagi sebentar.' : error?.message?.includes('Sesi tidak valid') ? 'Link sudah tidak berlaku. Pindai QR lagi.' : 'Gagal mengambil nomor. Coba lagi.');
-      return;
-    }
-    if (data.state) {
-      setState(data.state);
-      writeCachedState(gate, data.state);
-    } else {
-      setState((prev) => {
-        const next = { ...(prev || {}), ticket: data };
-        writeCachedState(gate, next);
-        return next;
+
+    try {
+      // Pastikan sesi sudah siap (klaim jika belum sempat tersimpan di state)
+      let currentSession = session || readSession(gate);
+      if (!currentSession && gate) {
+        const claimRes = await claimGate(gate);
+        if (claimRes?.session) {
+          currentSession = claimRes.session;
+          writeSession(gate, currentSession);
+          setSession(currentSession);
+        }
+      }
+
+      if (!currentSession) {
+        toast.error('Sesi tidak valid. Pindai ulang QR di booth.');
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('take_queue_ticket', {
+        p_session: currentSession,
+        p_name: 'Tamu',
       });
-      refresh();
+
+      if (error || !data) {
+        console.error('Gagal mengambil tiket:', error);
+        toast.error(
+          error?.message?.includes('Terlalu banyak')
+            ? 'Sedang ramai, coba lagi sebentar.'
+            : error?.message?.includes('Sesi tidak valid')
+              ? 'Link sudah tidak berlaku. Pindai QR lagi.'
+              : error?.message || 'Gagal mengambil nomor. Coba lagi.'
+        );
+        return;
+      }
+
+      if (data.state) {
+        setState(data.state);
+        writeCachedState(gate, data.state);
+      } else {
+        setState((prev) => {
+          const next = { ...(prev || {}), ticket: data };
+          writeCachedState(gate, next);
+          return next;
+        });
+        refresh();
+      }
+      toast.success(data.existing ? `Anda sudah punya antrian ${data.queue_number}.` : 'Nomor antrian berhasil diambil');
+    } finally {
+      setSubmitting(false);
     }
-    toast.success(data.existing ? `Anda sudah punya antrian ${data.queue_number}.` : 'Nomor antrian berhasil diambil');
   };
 
   const confirmHeading = async () => {
@@ -357,8 +386,6 @@ const QueueGuest = () => {
     writeCachedState(gate, null);
     setSession(null);
     setState(null);
-    setName('');
-    setErrors({});
     setLeaveOpen(false);
     setCallOpen(false);
     lastAlertRef.current = null;
@@ -371,9 +398,8 @@ const QueueGuest = () => {
     try {
       await unlockAudio();
       await playChime(1);
-      vibrate();
-      speak('Tes suara berhasil, audio aktif');
-      toast.success('Suara & getar aktif! (Pastikan HP tidak dalam mode hening)');
+      vibrate([100, 50, 100]);
+      toast.success('Notifikasi audio aktif! (Pastikan HP tidak dalam mode hening)');
     } catch (err) {
       console.warn('testSound error:', err);
       toast.error('Gagal memutar audio');
@@ -487,10 +513,6 @@ const QueueGuest = () => {
         {!ticket ? (
           <motion.section initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={cardCls}>
             <div className="text-center sm:text-left">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-semibold mb-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                QR Berhasil Terpindai
-              </span>
               <h2 className="text-[clamp(1.15rem,3vh,1.45rem)] font-bold text-white">Ambil nomor antrian</h2>
               <p className={`text-xs text-zinc-400 mt-1 leading-relaxed ${hideOnShort}`}>
                 Tidak perlu berdiri menunggu. HP Anda berbunyi saat giliran tiba.
@@ -516,12 +538,6 @@ const QueueGuest = () => {
                   </>
                 )}
               </button>
-
-              <div className="flex items-center justify-center gap-2 text-[11px] text-zinc-400 mt-0.5">
-                <span>⚡ 1-Tap Instan</span>
-                <span>•</span>
-                <span>Tiket langsung terbit</span>
-              </div>
             </div>
           </motion.section>
         ) : (
