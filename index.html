@@ -7,53 +7,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0B0B0B" />
 
-  <!-- Deteksi rute antrian tamu lebih awal agar App Shell langsung aktif pada first paint -->
-  <script>
-    (function () {
-      try {
-        var h = location.hostname;
-        var p = location.pathname;
-        var isQ = h === 'queue.snaphub.my.id' || h.startsWith('queue.') || p.indexOf('/queue') === 0;
-        var isDisplay = p.indexOf('/display') !== -1 || p.indexOf('/qr') !== -1;
-        if (isQ && !isDisplay) {
-          document.documentElement.classList.add('is-queue-guest');
-        }
-      } catch (e) {}
-    })();
-  </script>
-
-  <!-- Tampilan awal sebelum JavaScript siap: tidak lagi layar hitam kosong -->
+  <!-- Tampilan awal sebelum JavaScript siap: animasi loading merah profesional -->
   <style>
-    html, body { background: #0B0B0B; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
-    #boot-default { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    #boot-default i { width: 32px; height: 32px; border: 3px solid #D90429; border-top-color: transparent; border-radius: 50%; animation: boot-spin .8s linear infinite; }
+    html, body { background: #0B0B0B; margin: 0; padding: 0; }
+    #boot { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #fff; }
+    #boot i { width: 34px; height: 34px; border: 3px solid #D90429; border-top-color: transparent; border-radius: 50%; animation: boot-spin .75s linear infinite; display: inline-block; }
+    #boot span { font-size: 13px; font-weight: 500; color: #a1a1aa; letter-spacing: 0.02em; }
     @keyframes boot-spin { to { transform: rotate(360deg); } }
-
-    /* App Shell Instan untuk Halaman Antrian Tamu */
-    #boot-queue { display: none; min-height: 100vh; min-height: 100dvh; flex-direction: column; position: relative; overflow-x: hidden; background: #0b0b0c; }
-    html.is-queue-guest #boot-default { display: none !important; }
-    html.is-queue-guest #boot-queue { display: flex !important; }
-
-    .q-glow { position: absolute; top: -128px; left: 50%; transform: translateX(-50%); width: 28rem; height: 28rem; border-radius: 50%; background: rgba(217,4,41,0.25); filter: blur(110px); pointer-events: none; }
-    .q-hdr { position: relative; padding: max(0.9rem, env(safe-area-inset-top, 16px)) 20px 0; display: flex; justify-content: space-between; align-items: center; }
-    .q-btn-audio { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 9999px; font-size: 12px; color: #e4e4e7; }
-    .q-main { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 16px 20px max(3rem, env(safe-area-inset-bottom, 32px)); gap: 20px; max-width: 440px; margin: 0 auto; width: 100%; box-sizing: border-box; }
-    .q-hero { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-    .q-badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(217,4,41,0.4); background: rgba(217,4,41,0.15); padding: 4px 12px; border-radius: 9999px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; color: #fecdd3; }
-    .q-dot { width: 6px; height: 6px; border-radius: 50%; background: #fb7185; }
-    .q-title { font-size: clamp(1.35rem, 4.4vh, 2rem); font-weight: 800; line-height: 1.1; margin: 0; color: #ffffff; letter-spacing: -0.02em; }
-    .q-line { width: 48px; height: 4px; border-radius: 9999px; background: #D90429; margin: 4px auto 8px; }
-    .q-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; width: 100%; }
-    .q-stat { border-radius: 16px; padding: 10px 4px; text-align: center; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); }
-    .q-stat-hi { border-color: rgba(217,4,41,0.5); background: rgba(217,4,41,0.15); }
-    .q-stat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; margin-bottom: 4px; }
-    .q-stat-val { font-size: 18px; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #fff; }
-    
-    .q-card { width: 100%; box-sizing: border-box; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); background: linear-gradient(to bottom, #1b1b1f, #121214); padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-    .q-card-title { font-size: clamp(1.15rem, 3vh, 1.45rem); font-weight: 700; margin: 0; color: #fff; }
-    .q-card-desc { font-size: 12px; color: #a1a1aa; margin: 6px 0 0; line-height: 1.4; }
-    .q-take-btn { width: 100%; margin-top: 20px; box-sizing: border-box; border: none; border-radius: 12px; background: #D90429; color: #fff; padding: 16px 20px; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 10px 25px rgba(217,4,41,0.35); cursor: pointer; transition: transform 0.1s ease; }
-    .q-take-btn:active { transform: scale(0.98); }
   </style>
 
   <!-- SEO Meta Tags -->
@@ -203,52 +163,9 @@
 
 <body>
   <div id="root">
-    <div id="boot-default"><i></i></div>
-    <div id="boot-queue" data-theme="dark">
-      <div class="q-glow" aria-hidden="true"></div>
-      <header class="q-hdr">
-        <img src="/icons.svg" alt="SnapHub" style="height:24px;width:auto;" />
-        <div class="q-btn-audio">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-          <span>Tes suara</span>
-        </div>
-      </header>
-
-      <div class="q-main">
-        <section class="q-hero">
-          <span class="q-badge">
-            <span class="q-dot"></span>
-            Antrian photobooth
-          </span>
-          <h1 class="q-title">SnapHub Photobooth</h1>
-          <div class="q-line"></div>
-
-          <div class="q-stats">
-            <div class="q-stat">
-              <div class="q-stat-lbl">Giliran</div>
-              <div class="q-stat-val">–</div>
-            </div>
-            <div class="q-stat">
-              <div class="q-stat-lbl">Menunggu</div>
-              <div class="q-stat-val">0</div>
-            </div>
-            <div class="q-stat q-stat-hi">
-              <div class="q-stat-lbl">Estimasi</div>
-              <div class="q-stat-val">Langsung</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="q-card">
-          <h2 class="q-card-title">Ambil nomor antrian</h2>
-          <p class="q-card-desc">Tidak perlu berdiri menunggu. HP Anda berbunyi saat giliran tiba.</p>
-
-          <button type="button" class="q-take-btn" onclick="window.__earlyTakeTicket = true; this.innerHTML = '<span style=\'display:inline-block;width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:boot-spin .8s linear infinite;\'></span> Menerbitkan tiket...';">
-            <span>Ambil Nomor Sekarang</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-          </button>
-        </section>
-      </div>
+    <div id="boot">
+      <i></i>
+      <span>Menyiapkan antrian...</span>
     </div>
   </div>
   <script type="module" src="/src/main.jsx"></script>

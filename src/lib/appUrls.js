@@ -3,7 +3,13 @@
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 const isLocalHost = () =>
-  typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  typeof window !== 'undefined' && (
+    ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
+    window.location.hostname.endsWith('.local') ||
+    /^192\.168\./.test(window.location.hostname) ||
+    /^10\./.test(window.location.hostname) ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname)
+  );
 
 export const slugify = (text) =>
   (text || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');

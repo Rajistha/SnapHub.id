@@ -327,30 +327,23 @@ const QueueAdmin = () => {
     }, 'Gagal membuat link baru');
 
   const handleAddManual = async (e) => {
-    e.preventDefault();
-    if (!addName.trim()) {
-      toast.error('Nama tamu wajib diisi');
-      return;
-    }
+    e?.preventDefault?.();
     setAddingGuest(true);
     try {
       const nextSeq = (queues.reduce((max, q) => Math.max(max, q.seq_number || 0), 0) || 0) + 1;
       const queueNumber = `A-${String(nextSeq).padStart(2, '0')}`;
-      let phone = addPhone.trim().replace(/[^0-9]/g, '');
-      if (phone.startsWith('0')) phone = `62${phone.slice(1)}`;
 
-      const finalName = addName.trim();
       const { error } = await supabase.from('event_queues').insert({
         event_id: selectedEventId,
         queue_number: queueNumber,
         seq_number: nextSeq,
-        customer_name: finalName,
-        customer_phone: phone,
+        customer_name: '',
+        customer_phone: '',
         status: 'waiting',
       });
       if (error) throw error;
 
-      toast.success(`Nomor ${queueNumber} (${finalName}) berhasil ditambahkan`);
+      toast.success(`Nomor ${queueNumber} berhasil ditambahkan`);
       setAddName('');
       setAddPhone('');
       setAddOpen(false);
@@ -767,39 +760,25 @@ const QueueAdmin = () => {
       {addOpen && (
         <Modal
           title="Tambah antrian manual"
-          description="Untuk tamu VIP atau tamu tanpa HP (walk-in)"
+          description="Untuk tamu walk-in atau tanpa HP."
           size="sm"
           onClose={() => setAddOpen(false)}
-        >
-          <form onSubmit={handleAddManual} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">Nama Tamu (Opsional)</label>
-              <input
-                type="text"
-                autoFocus
-                placeholder="cth. Budi / Tamu VIP (bisa dikosongkan)"
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-                className="ui-input w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-[var(--admin-text-muted)] uppercase mb-1.5">No WhatsApp (Opsional)</label>
-              <input
-                type="tel"
-                placeholder="08xxxxxxxxxx"
-                value={addPhone}
-                onChange={(e) => setAddPhone(e.target.value)}
-                className="ui-input w-full font-mono"
-              />
-            </div>
-            <div className="pt-2 flex justify-end gap-2">
-              <button type="button" onClick={() => setAddOpen(false)} className="ui-btn">Batal</button>
-              <button type="submit" disabled={addingGuest} className="ui-btn ui-btn-primary">
-                {addingGuest ? 'Menyimpan…' : 'Tambah ke Antrian'}
+          footer={
+            <div className="w-full flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={addingGuest}
+                onClick={handleAddManual}
+                className="ui-btn ui-btn-primary w-full"
+              >
+                {addingGuest ? 'Menerbitkan…' : `Terbitkan Nomor A-${String((queues.reduce((max, q) => Math.max(max, q.seq_number || 0), 0) || 0) + 1).padStart(2, '0')}`}
               </button>
             </div>
-          </form>
+          }
+        >
+          <p className="text-sm text-[var(--admin-text-muted)] leading-relaxed">
+            Nomor antrian akan langsung diterbitkan secara otomatis dan masuk ke daftar antrian tanpa memerlukan nama atau nomor WhatsApp.
+          </p>
         </Modal>
       )}
 

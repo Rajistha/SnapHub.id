@@ -351,14 +351,6 @@ const QueueGuest = () => {
     }
   };
 
-  // Jika tamu sudah mengetuk tombol "Ambil Nomor Sekarang" saat App Shell HTML masih memuat
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.__earlyTakeTicket && !ticket && status === 'ready') {
-      window.__earlyTakeTicket = false;
-      takeTicket();
-    }
-  }, [ticket, status]);
-
   const confirmHeading = async () => {
     setCallOpen(false);
     if (!ticket) return;
