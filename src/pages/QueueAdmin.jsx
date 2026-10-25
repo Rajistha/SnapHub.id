@@ -816,23 +816,13 @@ const QueueAdmin = () => {
             <>
               <button
                 type="button"
-                onClick={() => {
-                  setNextChoiceOpen(false);
-                  isCallingRef.current = false;
-                }}
-                className="ui-btn"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
                 disabled={busy}
                 onClick={() => {
                   if (busy) return;
                   setNextChoiceOpen(false);
                   callNext('skip');
                 }}
-                className="ui-btn"
+                className="ui-btn w-full sm:w-auto"
               >
                 Tidak datang (lewati)
               </button>
@@ -844,7 +834,7 @@ const QueueAdmin = () => {
                   setNextChoiceOpen(false);
                   callNext('complete');
                 }}
-                className="ui-btn ui-btn-primary"
+                className="ui-btn ui-btn-primary w-full sm:w-auto"
               >
                 {active.status === 'serving' ? 'Selesai & lanjut' : 'Sudah difoto & lanjut'}
               </button>

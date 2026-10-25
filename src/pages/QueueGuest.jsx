@@ -65,6 +65,14 @@ const claimGate = (gate) => {
     window.__queuePreload = null;
     const prePromise = pre.promise
       .then((data) => {
+        if (!data || (!pre.session && !data.session)) {
+          // Preload kosong/gagal, fallback langsung ke Supabase RPC
+          return supabase.rpc('queue_claim_gate', { p_gate: gate }).then(({ data: rpcData, error }) => ({
+            session: rpcData?.session || null,
+            state: rpcData?.state || null,
+            error,
+          }));
+        }
         if (pre.session) {
           return { session: pre.session, state: data, error: null };
         }
@@ -342,6 +350,14 @@ const QueueGuest = () => {
       setSubmitting(false);
     }
   };
+
+  // Jika tamu sudah mengetuk tombol "Ambil Nomor Sekarang" saat App Shell HTML masih memuat
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.__earlyTakeTicket && !ticket && status === 'ready') {
+      window.__earlyTakeTicket = false;
+      takeTicket();
+    }
+  }, [ticket, status]);
 
   const confirmHeading = async () => {
     setCallOpen(false);
