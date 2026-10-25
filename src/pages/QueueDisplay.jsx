@@ -39,7 +39,7 @@ const QueueDisplay = () => {
   const lastCallRef = useRef(null);
 
   const refresh = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token });
+    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token, p_ticket_id: null });
     if (error) {
       setOffline(true);
       return;

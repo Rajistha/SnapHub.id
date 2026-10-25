@@ -1,15 +1,18 @@
 -- ============================================================================
 -- SnapHub — Sistem Antrian Photobooth (Rekomendasi 1: Stabil, Cepat, Anti-Error)
 -- Jalankan di SQL Editor Supabase. Aman diulang berkali-kali (idempotent).
---
--- Keunggulan:
---   * QR di layar TV memakai token event (permanen & stabil selama acara).
---   * Kompatibel 100% dengan iPhone (Kamera, Code Scanner, Safari), Android & Chrome.
---   * Tidak ada error "QR sudah dipakai".
---   * Sangat cepat (sub-millisecond) dengan indexing optimal & row-locking anti-race condition.
 -- ============================================================================
 
--- ── 1. Indeks performa ───────────────────────────────────────────────────────
+-- ── 1. Hapus SEMUA fungsi antrian versi lama di awal (cegah ambigu 42725) ────
+drop function if exists public.take_queue_ticket(text);
+drop function if exists public.take_queue_ticket(text, text);
+drop function if exists public.take_queue_ticket(text, text, text);
+drop function if exists public.take_queue_ticket(uuid);
+drop function if exists public.take_queue_ticket(uuid, text);
+drop function if exists public.get_queue_state(text);
+drop function if exists public.get_queue_state(text, uuid);
+
+-- ── 2. Indeks performa ───────────────────────────────────────────────────────
 create index if not exists idx_event_queues_event_seq on public.event_queues(event_id, seq_number);
 create index if not exists idx_event_queues_status on public.event_queues(event_id, status);
 create index if not exists idx_financial_events_queue_token on public.financial_events(queue_token);
@@ -22,7 +25,7 @@ alter table public.event_queues add constraint event_queues_len_chk
 -- Default nama kosong '', tiket terbit secara 1-tap instan
 alter table public.event_queues alter column customer_name set default '';
 
--- ── 2. Helper identifikasi event dari token ───────────────────────────────────
+-- ── 3. Helper identifikasi event dari token ───────────────────────────────────
 create or replace function public.queue_event_id(p_token text)
 returns bigint
 language sql
@@ -37,7 +40,7 @@ $$;
 
 revoke execute on function public.queue_event_id(text) from public, anon, authenticated;
 
--- ── 3. Papan antrian (dipakai bersama oleh TV dan tamu) ──────────────────────
+-- ── 4. Papan antrian (dipakai bersama oleh TV dan tamu) ──────────────────────
 create or replace function public.queue_state_for(p_event_id bigint, p_ticket_id uuid default null)
 returns jsonb
 language plpgsql
@@ -93,7 +96,7 @@ begin
     'avg_service_seconds', round(v_avg), 'ticket', v_ticket);
 end $$;
 
--- ── 4. Ambil state antrian berdasarkan token event ───────────────────────────
+-- ── 5. Ambil state antrian berdasarkan token event ───────────────────────────
 create or replace function public.get_queue_state(p_token text, p_ticket_id uuid default null)
 returns jsonb
 language plpgsql
@@ -108,21 +111,14 @@ begin
   return public.queue_state_for(v_event_id, p_ticket_id);
 end $$;
 
-create or replace function public.get_queue_state(p_token text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select public.get_queue_state(p_token, null::uuid);
-$$;
-
 grant execute on function public.get_queue_state(text, uuid) to anon, authenticated;
-grant execute on function public.get_queue_state(text) to anon, authenticated;
 
--- ── 5. Ambil nomor antrian instan 1-tap (Concurrency-Safe Row Locking) ───────
-create or replace function public.take_queue_ticket(p_token text, p_name text default '', p_phone text default '')
+-- ── 6. Ambil nomor antrian instan 1-tap ───────────────────────────────────────
+create or replace function public.take_queue_ticket(
+  p_token text,
+  p_name text default '',
+  p_phone text default ''
+)
 returns jsonb
 language plpgsql
 security definer
@@ -167,20 +163,9 @@ begin
   );
 end $$;
 
--- Overload agar bisa dipanggil dengan 1 argumen
-create or replace function public.take_queue_ticket(p_token text)
-returns jsonb
-language sql
-security definer
-set search_path = public
-as $$
-  select public.take_queue_ticket(p_token, '', '');
-$$;
-
 grant execute on function public.take_queue_ticket(text, text, text) to anon, authenticated;
-grant execute on function public.take_queue_ticket(text) to anon, authenticated;
 
--- ── 6. Tamu konfirmasi "Saya menuju booth" ────────────────────────────────────
+-- ── 7. Tamu konfirmasi "Saya menuju booth" ────────────────────────────────────
 create or replace function public.queue_confirm_heading(p_ticket_id uuid)
 returns boolean
 language sql
@@ -196,7 +181,7 @@ $$;
 
 grant execute on function public.queue_confirm_heading(uuid) to anon, authenticated;
 
--- ── 7. Tamu membatalkan / melepas nomornya sendiri ────────────────────────────
+-- ── 8. Tamu membatalkan / melepas nomornya sendiri ────────────────────────────
 create or replace function public.queue_leave(p_ticket_id uuid)
 returns boolean
 language sql
@@ -212,5 +197,6 @@ $$;
 
 grant execute on function public.queue_leave(uuid) to anon, authenticated;
 
--- Bersihkan data sebelumnya yang sempat otomatis terisi 'Tamu'
+-- ── 9. Bersihkan data 'Tamu' lama ─────────────────────────────────────────────
 update public.event_queues set customer_name = '' where customer_name = 'Tamu';
+

@@ -275,7 +275,11 @@ const QueueGuest = () => {
     setSubmitting(true);
 
     try {
-      const { data, error } = await supabase.rpc('take_queue_ticket', { p_token: token });
+      const { data, error } = await supabase.rpc('take_queue_ticket', {
+        p_token: token,
+        p_name: '',
+        p_phone: '',
+      });
 
       if (error || !data) {
         console.error('Gagal mengambil tiket:', error);

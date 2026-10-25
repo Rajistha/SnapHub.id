@@ -16,7 +16,7 @@ const QueueQr = () => {
   const [qrDataUrl, setQrDataUrl] = useState('');
 
   const refresh = useCallback(async () => {
-    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token });
+    const { data, error } = await supabase.rpc('get_queue_state', { p_token: token, p_ticket_id: null });
     if (error) return;
     if (data?.event) setEvent(data.event);
     else if (data === null) setInvalid(true);
