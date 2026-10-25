@@ -132,10 +132,11 @@ const QueueGuest = () => {
   const lastAlertRef = useRef(null);
   const inFlightRef = useRef(false);
   const releaseTicketRef = useRef();
+  const isReleasedRef = useRef(false);
 
   // Klaim sesi instan dari scan QR (langsung mengonsumsi preload fetch dari index.html bila ada)
   useEffect(() => {
-    if (session) return undefined;
+    if (session || isReleasedRef.current || status === 'used' || status === 'error') return undefined;
     if (!gate) {
       setStatus('used');
       return undefined;
@@ -255,7 +256,7 @@ const QueueGuest = () => {
 
   // Hitung mundur 30 detik saat selesai untuk menutup link otomatis agar hemat memori & beban server
   useEffect(() => {
-    if (!finished) {
+    if (!finished || isReleasedRef.current || status === 'used') {
       setCountdown(30);
       return undefined;
     }
@@ -271,7 +272,7 @@ const QueueGuest = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [finished]);
+  }, [finished, status]);
 
   useEffect(() => {
     if (!liveTicket || !('wakeLock' in navigator)) return undefined;
@@ -366,8 +367,10 @@ const QueueGuest = () => {
 
   // Selesai/batal: sesi dilepas. Antri lagi berarti harus memindai QR terbaru di booth.
   const releaseTicket = async (cancelOnServer) => {
-    if (cancelOnServer && ticket?.status === 'waiting') {
-      await supabase.rpc('queue_leave', { p_ticket_id: ticket.id });
+    isReleasedRef.current = true;
+    claims.delete(gate);
+    if (cancelOnServer && ticket?.id && ticket?.status === 'waiting') {
+      await supabase.rpc('queue_leave', { p_ticket_id: ticket.id }).catch(() => {});
     }
     writeSession(gate, null);
     writeCachedState(gate, null);
@@ -407,6 +410,19 @@ const QueueGuest = () => {
           <h1 className="text-xl font-bold">{content.title}</h1>
           <p className="text-sm text-zinc-400 mt-2">{content.text}</p>
         </div>
+      </div>
+    );
+  }
+
+  // Tampilkan animasi loading selama sesi belum terhubung (menghilangkan black screen)
+  if (!session && !state) {
+    if (status === 'used' || status === 'error' || isReleasedRef.current) {
+      return null;
+    }
+    return (
+      <div data-theme="dark" className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#0b0b0c] text-white gap-3.5 p-6 text-center">
+        <div className="w-8 h-8 border-[3px] border-[#D90429] border-t-transparent rounded-full animate-spin" role="status" aria-label="Menghubungkan ke antrian" />
+        <p className="text-sm text-zinc-400 font-medium">Menghubungkan ke antrian…</p>
       </div>
     );
   }

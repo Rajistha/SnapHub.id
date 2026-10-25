@@ -2,15 +2,6 @@
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-const isLocalHost = () =>
-  typeof window !== 'undefined' && (
-    ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
-    window.location.hostname.endsWith('.local') ||
-    /^192\.168\./.test(window.location.hostname) ||
-    /^10\./.test(window.location.hostname) ||
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname)
-  );
-
 export const slugify = (text) =>
   (text || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
@@ -32,10 +23,24 @@ export const getAdminUrl = () => {
   return window.location.hostname.includes('snaphub.my.id') ? 'https://spanel.snaphub.my.id' : '/admin';
 };
 
-export const getBioUrl = () => (isLocalHost() ? '/links' : 'https://link.snaphub.my.id');
+export const getBioUrl = () =>
+  typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? '/links'
+    : 'https://link.snaphub.my.id';
 
-export const queueBaseUrl = () =>
-  isLocalHost() ? `${window.location.origin}/queue` : 'https://queue.snaphub.my.id';
+export const queueBaseUrl = () => {
+  if (typeof window === 'undefined') return 'https://queue.snaphub.my.id';
+  // Jika dibuka di localhost: HP yang scan QR code TIDAK BISA mengakses http://localhost!
+  // QR code harus mengarah ke domain publik https://queue.snaphub.my.id agar HP bisa membukanya!
+  if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    return 'https://queue.snaphub.my.id';
+  }
+  // Jika dibuka lewat IP LAN lokal (misal 192.168.x.x:5173), gunakan origin tersebut
+  if (/^192\.168\./.test(window.location.hostname) || /^10\./.test(window.location.hostname)) {
+    return `${window.location.origin}/queue`;
+  }
+  return 'https://queue.snaphub.my.id';
+};
 
 export const queueGuestUrl = (event) =>
   event?.queue_token ? `${queueBaseUrl()}/${slugify(event.name)}-${event.queue_token}` : '';
