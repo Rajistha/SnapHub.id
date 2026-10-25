@@ -461,8 +461,8 @@ const Admin = () => {
             </span>
           </button>
           <a
-            href={isLocalHost ? '/' : 'https://snaphub.my.id'}
-            target={isLocalHost ? '_self' : '_blank'}
+            href={isLocalhost ? '/' : 'https://snaphub.my.id'}
+            target={isLocalhost ? '_self' : '_blank'}
             rel="noopener noreferrer"
             className="w-full flex items-center justify-center gap-2 bg-[var(--admin-hover-bg)] hover:border-[var(--admin-border)] border border-transparent text-[var(--admin-text-main)] px-3.5 py-2.5 rounded-xl transition-all text-xs font-semibold group cursor-pointer"
           >
