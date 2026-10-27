@@ -424,25 +424,25 @@ const QueueCrew = () => {
                 </div>
 
                 {/* Print Tambahan & Opsi Voucher */}
-                <div className="rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-3 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[var(--admin-text-muted)]">Print tambahan</span>
-                    <div className="inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-bg)] p-0.5">
+                <div className="rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-2.5 sm:p-3 flex items-center justify-between gap-2 overflow-x-auto">
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    <span className="text-[11px] sm:text-xs font-semibold text-[var(--admin-text-muted)] whitespace-nowrap">Print tambahan</span>
+                    <div className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-bg)] p-0.5">
                       <button
                         type="button"
                         onClick={() => changePrints(active, -1)}
                         disabled={(active.prints || 0) <= 0}
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
+                        className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
                         aria-label="Kurangi cetak"
                       >
                         –
                       </button>
-                      <span className="w-8 text-center font-mono font-bold num text-sm">{active.prints || 0}</span>
+                      <span className="w-6 sm:w-8 text-center font-mono font-bold num text-xs sm:text-sm">{active.prints || 0}</span>
                       <button
                         type="button"
                         onClick={() => changePrints(active, 1)}
                         disabled={(active.prints || 0) >= 50}
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
+                        className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
                         aria-label="Tambah cetak"
                       >
                         +
@@ -451,12 +451,12 @@ const QueueCrew = () => {
                   </div>
 
                   {!percentMode && (
-                    <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none">
+                    <label className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs cursor-pointer select-none shrink-0 whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={!!active.no_voucher}
                         onChange={(e) => setNoVoucher(active, e.target.checked)}
-                        className="rounded border-[var(--admin-border)]"
+                        className="rounded border-[var(--admin-border)] w-3.5 h-3.5 accent-[#D90429]"
                       />
                       <span>Tanpa voucher (+Rp 5.000)</span>
                     </label>
@@ -464,25 +464,25 @@ const QueueCrew = () => {
                 </div>
 
                 {/* Tombol Aksi Tamu Aktif */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2 pt-1">
                   {active.status !== 'serving' ? (
-                    <button onClick={() => startServing(active)} disabled={busy} className="ui-btn ui-btn-primary">
-                      <FiCamera size={15} /> Mulai Foto
+                    <button onClick={() => startServing(active)} disabled={busy} className="ui-btn ui-btn-primary px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
+                      <FiCamera size={14} className="shrink-0" /> <span>Mulai Foto</span>
                     </button>
                   ) : (
-                    <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-primary">
-                      <FiCheck size={15} /> Selesai
+                    <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-primary px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
+                      <FiCheck size={14} className="shrink-0" /> <span>Selesai</span>
                     </button>
                   )}
-                  <button onClick={() => recall(active)} disabled={busy} className="ui-btn">
-                    <FiVolume2 size={15} /> Panggil Ulang
+                  <button onClick={() => recall(active)} disabled={busy} className="ui-btn px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
+                    <span>Panggil Ulang</span>
                   </button>
-                  <button onClick={() => skip(active)} disabled={busy} className="ui-btn">
-                    <FiSkipForward size={15} /> Lewati
+                  <button onClick={() => skip(active)} disabled={busy} className="ui-btn px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
+                    <FiSkipForward size={14} className="shrink-0" /> <span>Lewati</span>
                   </button>
                   {active.status !== 'serving' && (
-                    <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ghost text-emerald-400">
-                      <FiCheck size={15} /> Selesai
+                    <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ghost text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
+                      <FiCheck size={14} className="shrink-0" /> <span>Selesai</span>
                     </button>
                   )}
                 </div>
@@ -558,8 +558,8 @@ const QueueCrew = () => {
                   className="ui-input pl-8 py-1.5 text-xs w-full"
                 />
               </div>
-              <button onClick={() => setAddOpen(true)} className="ui-btn ui-btn-primary shrink-0">
-                <FiPlus size={14} /> <span className="hidden sm:inline">Tambah Manual</span>
+              <button onClick={() => setAddOpen(true)} className="ui-btn ui-btn-primary shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold whitespace-nowrap">
+                <FiPlus size={14} /> <span>Tambah Manual</span>
               </button>
             </div>
           </div>
