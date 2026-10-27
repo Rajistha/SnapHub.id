@@ -4,14 +4,14 @@ import toast, { Toaster } from 'react-hot-toast';
 import { SiWhatsapp } from 'react-icons/si';
 import {
   FiSun, FiMoon, FiSearch, FiExternalLink, FiTrash2, FiRefreshCw,
-  FiPlay, FiCheck, FiSkipForward, FiVolume2, FiRotateCcw, FiCamera, FiPlus, FiGrid
+  FiPlay, FiCheck, FiSkipForward, FiVolume2, FiRotateCcw, FiCamera, FiPlus, FiGrid, FiArrowLeft, FiShare2, FiCopy
 } from 'react-icons/fi';
 import { supabase } from '../lib/supabase';
 import usePolling from '../lib/usePolling';
 import { playChime, unlockAudio } from '../lib/chime';
 import { isActive, statusMeta, toWaNumber } from '../lib/queueStatus';
 import { formatRupiah } from '../lib/pricelistDefaults';
-import { formatDate, queueDisplayUrl, queueQrUrl, tokenFromSlug } from '../lib/appUrls';
+import { formatDate, queueDisplayUrl, queueQrUrl, queueGuestUrl, tokenFromSlug } from '../lib/appUrls';
 import Modal from '../components/ui/Modal';
 
 const sortBySeq = (rows) => [...rows].sort((a, b) => a.seq_number - b.seq_number);
@@ -57,6 +57,7 @@ const QueueCrew = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [addingGuest, setAddingGuest] = useState(false);
   const [toDelete, setToDelete] = useState(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const isCallingRef = useRef(false);
 
   useEffect(() => {
@@ -338,6 +339,7 @@ const QueueCrew = () => {
     );
   }
 
+  const guestUrl = queueGuestUrl(event);
   const displayUrl = queueDisplayUrl(event);
   const qrPageUrl = queueQrUrl(event);
 
@@ -348,30 +350,30 @@ const QueueCrew = () => {
       {/* ── Header Kru ── */}
       <header className="sticky top-0 z-30 bg-[var(--admin-bg)]/95 backdrop-blur border-b border-[var(--admin-border)]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <img src="/icons.svg" alt="SnapHub" className="h-6 sm:h-7 w-auto shrink-0" />
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => window.history.back()} className="ui-btn ui-btn-icon" aria-label="Kembali"><FiArrowLeft size={16} /></button>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold leading-tight truncate text-sm sm:text-base">{event?.name}</h1>
-                <span className="shrink-0 inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                  Mode Kru
-                </span>
-              </div>
-              <p className="text-xs text-[var(--admin-text-muted)]">{formatDate(event?.date)}</p>
+              <h1 className="font-semibold leading-tight truncate">{event?.name || 'Mode Kru Antrian'}</h1>
+              <p className="text-sm text-[var(--admin-text-muted)]">{formatDate(event?.date)}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {guestUrl && (
+              <button onClick={() => setShareOpen(true)} className="ui-btn" disabled={!guestUrl}>
+                <FiShare2 size={15} /> <span className="hidden sm:inline">Bagikan</span>
+              </button>
+            )}
             {qrPageUrl && (
-              <a href={qrPageUrl} target="_blank" rel="noopener noreferrer" className="ui-btn" title="Buka Halaman QR Booth">
-                <FiGrid size={15} /> <span className="hidden sm:inline">QR Booth</span>
+              <a href={qrPageUrl} target="_blank" rel="noopener noreferrer" className="ui-btn">
+                <FiGrid size={15} /> <span className="hidden sm:inline">Halaman QR</span>
               </a>
             )}
             {displayUrl && (
-              <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="ui-btn" title="Buka Layar TV">
+              <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="ui-btn">
                 <FiExternalLink size={15} /> <span className="hidden sm:inline">Layar TV</span>
               </a>
             )}
-            <button onClick={toggleTheme} className="ui-btn ui-btn-icon" aria-label="Ganti tema">
+            <button onClick={toggleTheme} className="ui-btn ui-btn-icon" aria-label={theme === 'dark' ? 'Ganti ke tema terang' : 'Ganti ke tema gelap'}>
               {theme === 'dark' ? <FiMoon size={15} /> : <FiSun size={15} />}
             </button>
           </div>
@@ -381,7 +383,7 @@ const QueueCrew = () => {
       {/* ── Konten Kontrol Antrian ── */}
       <main className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-[max(3rem,env(safe-area-inset-bottom))] space-y-4 sm:space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {/* Card: Sedang Dilayani */}
+          {/* Sedang dilayani */}
           <section className="ui-card p-4 sm:p-6 lg:col-span-3" aria-live="polite">
             <div className="flex items-center justify-between gap-3 mb-4">
               <h2 className="text-sm font-semibold text-[var(--admin-text-muted)]">Sedang dilayani</h2>
@@ -390,6 +392,7 @@ const QueueCrew = () => {
 
             {active ? (
               <div className="flex flex-col gap-3 sm:gap-4">
+                {/* Identitas tamu + total bayar */}
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                   <div className="min-w-0">
                     <p className="text-5xl sm:text-6xl font-bold font-mono tracking-tight num leading-none">{active.queue_number}</p>
@@ -423,205 +426,210 @@ const QueueCrew = () => {
                   })()}
                 </div>
 
-                {/* Print Tambahan & Opsi Voucher */}
-                <div className="rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-2.5 sm:p-3 flex items-center justify-between gap-2 overflow-x-auto">
-                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                    <span className="text-[11px] sm:text-xs font-semibold text-[var(--admin-text-muted)] whitespace-nowrap">Print tambahan</span>
-                    <div className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-bg)] p-0.5">
+                {/* Voucher + print */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {!percentMode && (
+                  <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--admin-border)] p-1" role="group" aria-label="Voucher">
+                    {[{ v: false, label: 'Pakai voucher' }, { v: true, label: 'Tanpa voucher' }].map((o) => (
                       <button
+                        key={o.label}
                         type="button"
-                        onClick={() => changePrints(active, -1)}
-                        disabled={(active.prints || 0) <= 0}
-                        className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
-                        aria-label="Kurangi cetak"
+                        onClick={() => setNoVoucher(active, o.v)}
+                        aria-pressed={!!active.no_voucher === o.v}
+                        className={`rounded-lg min-h-10 px-2 text-sm font-semibold transition-colors ${
+                          !!active.no_voucher === o.v
+                            ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] border border-[var(--admin-accent)]/30'
+                            : 'text-[var(--admin-text-muted)] hover:bg-[var(--admin-hover-bg)] border border-transparent'
+                        }`}
                       >
-                        –
+                        {o.label}
                       </button>
-                      <span className="w-6 sm:w-8 text-center font-mono font-bold num text-xs sm:text-sm">{active.prints || 0}</span>
-                      <button
-                        type="button"
-                        onClick={() => changePrints(active, 1)}
-                        disabled={(active.prints || 0) >= 50}
-                        className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
-                        aria-label="Tambah cetak"
-                      >
-                        +
-                      </button>
+                    ))}
+                  </div>
+                  )}
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-[var(--admin-border)] pl-3 pr-1 py-1">
+                    <span className="text-sm text-[var(--admin-text-muted)]">Print tambahan</span>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => changePrints(active, -1)} disabled={!active.prints} className="ui-btn ui-btn-icon min-h-10 min-w-10 text-lg" aria-label="Kurangi print">−</button>
+                      <span className="w-6 text-center text-base font-semibold num" aria-live="polite">{active.prints || 0}</span>
+                      <button type="button" onClick={() => changePrints(active, 1)} className="ui-btn ui-btn-icon min-h-10 min-w-10 text-lg" aria-label="Tambah print">+</button>
                     </div>
                   </div>
-
-                  {!percentMode && (
-                    <label className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs cursor-pointer select-none shrink-0 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={!!active.no_voucher}
-                        onChange={(e) => setNoVoucher(active, e.target.checked)}
-                        className="rounded border-[var(--admin-border)] w-3.5 h-3.5 accent-[#D90429]"
-                      />
-                      <span>Tanpa voucher (+Rp 5.000)</span>
-                    </label>
-                  )}
                 </div>
 
-                {/* Tombol Aksi Tamu Aktif */}
-                <div className="grid grid-cols-4 gap-1.5 sm:gap-2 pt-1">
-                  {active.status !== 'serving' ? (
-                    <button onClick={() => startServing(active)} disabled={busy} className="ui-btn ui-btn-primary px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                      <FiCamera size={14} className="shrink-0" /> <span>Mulai Foto</span>
-                    </button>
-                  ) : (
-                    <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-primary px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                      <FiCheck size={14} className="shrink-0" /> <span>Selesai</span>
-                    </button>
-                  )}
-                  <button onClick={() => recall(active)} disabled={busy} className="ui-btn px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                    <span>Panggil Ulang</span>
+                {/* Aksi */}
+                {active.status === 'serving' ? (
+                  <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ok ui-btn-lg w-full">
+                    <FiCheck size={18} /> Selesai
                   </button>
-                  <button onClick={() => skip(active)} disabled={busy} className="ui-btn px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                    <FiSkipForward size={14} className="shrink-0" /> <span>Lewati</span>
+                ) : (
+                  <button onClick={() => startServing(active)} disabled={busy} className="ui-btn ui-btn-ok ui-btn-lg w-full">
+                    <FiCamera size={18} /> Mulai foto
                   </button>
+                )}
+                <div className={`grid gap-2 ${active.status === 'serving' ? 'grid-cols-1' : 'grid-cols-2'}`}>
                   {active.status !== 'serving' && (
-                    <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ghost text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                      <FiCheck size={14} className="shrink-0" /> <span>Selesai</span>
-                    </button>
+                    <button onClick={() => recall(active)} disabled={busy} className="ui-btn min-h-11"><FiVolume2 size={15} /> Panggil lagi</button>
                   )}
+                  <button onClick={() => skip(active)} disabled={busy} className="ui-btn min-h-11"><FiSkipForward size={15} /> Lewati</button>
                 </div>
+                {active.status !== 'serving' && (
+                  <button onClick={() => complete(active)} disabled={busy} className="text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] underline underline-offset-2 mx-auto py-1">
+                    Langsung tandai selesai
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <p className="text-base font-semibold">Tidak ada tamu yang sedang aktif</p>
-                <p className="text-xs text-[var(--admin-text-muted)] mt-1">
-                  Tekan tombol di bawah untuk memanggil antrian berikutnya.
-                </p>
+              <div className="py-8">
+                <p className="font-medium">Belum ada tamu yang dipanggil</p>
               </div>
             )}
           </section>
 
-          {/* Card: Tombol Panggil Berikutnya */}
-          <section className="ui-card p-4 sm:p-6 lg:col-span-2 flex flex-col justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-[var(--admin-text-muted)]">Aksi Cepat</h2>
-              <p className="text-xs text-[var(--admin-text-muted)] mt-1">
-                {waiting.length} tamu sedang menunggu giliran.
-              </p>
+          {/* Berikutnya */}
+          <section className="ui-card p-4 sm:p-6 lg:col-span-2 flex flex-col">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-sm font-semibold text-[var(--admin-text-muted)]">Berikutnya</h2>
+              <span className="text-sm text-[var(--admin-text-muted)] num">{waiting.length} menunggu</span>
             </div>
 
-            <button
-              onClick={requestCallNext}
-              disabled={busy || waiting.length === 0}
-              className="ui-btn ui-btn-primary ui-btn-lg w-full py-4 text-base font-bold shadow-lg shadow-[#D90429]/25 flex items-center justify-center gap-2"
-            >
-              <FiPlay size={18} /> Panggil Berikutnya {waiting.length > 0 ? `(${waiting[0].queue_number})` : ''}
-            </button>
+            {waiting[0] ? (
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="min-w-0">
+                  {waiting[0].customer_name && waiting[0].customer_name !== 'Tamu' ? (
+                    <p className="font-medium truncate">{waiting[0].customer_name}</p>
+                  ) : (
+                    <p className="font-semibold text-sm text-[var(--admin-text-main)]">Antrian berikutnya</p>
+                  )}
+                  <p className="text-sm text-[var(--admin-text-muted)] font-mono">{waiting[0].customer_phone || ''}</p>
+                </div>
+                <p className="text-3xl font-bold font-mono num">{waiting[0].queue_number}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--admin-text-muted)] mb-4">Tidak ada tamu yang menunggu.</p>
+            )}
 
-            <label className="flex items-center gap-2 text-xs text-[var(--admin-text-muted)] select-none">
-              <input
-                type="checkbox"
-                checked={autoSession}
-                onChange={(e) => setAutoSession(e.target.checked)}
-                className="rounded border-[var(--admin-border)]"
-              />
-              <span>Otomatis catat sesi foto saat selesai</span>
-            </label>
+            <div className="mt-auto space-y-3">
+              <button type="button" onClick={requestCallNext} disabled={busy || waiting.length === 0} className="ui-btn ui-btn-primary ui-btn-lg w-full min-h-12">
+                <FiPlay size={16} /> Panggil berikutnya
+              </button>
+              <label className="flex items-start gap-2.5 text-sm text-[var(--admin-text-muted)] cursor-pointer">
+                <input type="checkbox" checked={autoSession} onChange={(e) => setAutoSession(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[var(--admin-primary)]" />
+                <span>Catat +1 sesi foto otomatis saat tamu selesai</span>
+              </label>
+            </div>
           </section>
         </div>
 
-        {/* ── Daftar Semua Antrean ── */}
-        <section className="ui-card p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-full border border-[var(--admin-border)] bg-[var(--admin-surface)] p-0.5">
-                {TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTab(t.id)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                      tab === t.id ? 'bg-[var(--admin-primary)] text-white shadow-sm' : 'text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)]'
-                    }`}
-                  >
-                    {t.label}
-                    {t.id === 'active' && waiting.length > 0 && ` (${waiting.length})`}
-                    {t.id === 'completed' && completedCount > 0 && ` (${completedCount})`}
+        {/* Daftar antrian */}
+        <section className="ui-card">
+          <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--admin-border)]">
+            <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Filter antrian">
+              {TABS.map((t) => {
+                const count = t.id === 'active' ? waiting.length + (active ? 1 : 0) : t.id === 'completed' ? completedCount : queues.length;
+                return (
+                  <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className="ui-tab">
+                    {t.label} <span className="num opacity-70">{count}</span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-
             <div className="flex items-center gap-2">
-              <div className="relative flex-1 sm:w-48">
-                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)]" size={13} />
-                <input
-                  type="search"
-                  placeholder="Cari..."
-                  value={queueSearch}
-                  onChange={(e) => setQueueSearch(e.target.value)}
-                  className="ui-input pl-8 py-1.5 text-xs w-full"
-                />
+              <div className="relative flex-1 sm:w-60">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--admin-text-muted)]" size={14} aria-hidden="true" />
+                <input type="search" aria-label="Cari nama, nomor, atau WhatsApp" placeholder="Cari tamu" value={queueSearch} onChange={(e) => setQueueSearch(e.target.value)} className="ui-input pl-9" />
               </div>
-              <button onClick={() => setAddOpen(true)} className="ui-btn ui-btn-primary shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold whitespace-nowrap">
-                <FiPlus size={14} /> <span>Tambah Manual</span>
+              <button onClick={() => refresh()} className="ui-btn ui-btn-icon shrink-0" aria-label="Muat ulang">
+                <FiRefreshCw size={15} className={busy ? 'animate-spin' : ''} />
+              </button>
+              <button onClick={() => setAddOpen(true)} className="ui-btn ui-btn-primary shrink-0 gap-1.5" aria-label="Tambah manual">
+                <FiPlus size={15} /> <span className="hidden sm:inline">Tambah</span>
               </button>
             </div>
           </div>
 
           {visibleQueues.length === 0 ? (
-            <p className="text-center text-xs text-[var(--admin-text-muted)] py-10">Tidak ada antrian pada tab ini.</p>
-          ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-[var(--admin-border-subtle)] text-[var(--admin-text-muted)] uppercase tracking-wider">
-                    <th className="py-2.5 px-3">Nomor</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3">Print</th>
-                    <th className="py-2.5 px-3 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--admin-border-subtle)]">
-                  {visibleQueues.map((item) => {
-                    const activeRow = isActive(item);
-                    return (
-                      <tr key={item.id} className={activeRow ? 'bg-[var(--admin-hover-bg)] font-medium' : ''}>
-                        <td className="py-2.5 px-3 font-mono font-bold num text-sm text-[var(--admin-text-main)]">
-                          {item.queue_number}
-                          {item.customer_name && item.customer_name !== 'Tamu' ? (
-                            <span className="block font-sans text-xs font-normal text-[var(--admin-text-muted)] truncate">{item.customer_name}</span>
-                          ) : null}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="ui-status text-[11px]" data-tone={statusMeta(item.status).tone}>
-                            {statusMeta(item.status).label}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="font-mono num">{item.prints || 0}</span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <div className="inline-flex items-center gap-1 justify-end">
-                            {item.status === 'waiting' && (
-                              <button onClick={() => startServing(item)} className="ui-btn ui-btn-sm" title="Mulai layani nomor ini">
-                                Panggil
-                              </button>
-                            )}
-                            {item.status === 'skipped' && (
-                              <button onClick={() => requeue(item)} className="ui-btn ui-btn-sm" title="Kembalikan ke antrean">
-                                <FiRotateCcw size={12} />
-                              </button>
-                            )}
-                            <button onClick={() => setToDelete(item)} className="ui-btn ui-btn-sm ui-btn-icon text-rose-400 hover:bg-rose-500/10" title="Hapus antrian">
-                              <FiTrash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="text-center py-12 px-4">
+              <p className="font-medium">{queues.length === 0 ? 'Belum ada tamu yang mengambil tiket' : 'Tidak ada hasil'}</p>
             </div>
+          ) : (
+            <ul className="divide-y divide-[var(--admin-border)]">
+              {visibleQueues.map((item) => {
+                const meta = statusMeta(item.status);
+                return (
+                  <li key={item.id} className="px-4 py-3 flex items-center gap-3 sm:gap-4">
+                    <span className="w-14 shrink-0 font-mono font-bold text-lg num">{item.queue_number}</span>
+                    <div className="min-w-0 flex-1">
+                      {item.customer_name && item.customer_name !== 'Tamu' ? (
+                        <p className="font-medium truncate">{item.customer_name}</p>
+                      ) : null}
+                      <p className="text-sm text-[var(--admin-text-muted)] truncate">
+                        <span className="sm:hidden font-semibold text-[var(--admin-text-main)]">{meta.label} · </span>
+                        {item.customer_phone ? <span className="font-mono">{item.customer_phone} · </span> : null}
+                        {new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        {!percentMode && item.no_voucher && ' · tanpa voucher'}
+                        {item.prints > 0 && ` · +${item.prints} print`}
+                      </p>
+                    </div>
+                    <span className="ui-status hidden sm:inline-flex" data-tone={meta.tone}>{meta.label}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {(item.status === 'skipped' || item.status === 'cancelled') && (
+                        <button onClick={() => requeue(item)} className="ui-btn ui-btn-sm ui-btn-icon" aria-label={`Kembalikan ${item.queue_number} ke antrean`} title="Kembalikan ke antrean"><FiRotateCcw size={14} /></button>
+                      )}
+                      {item.customer_phone && (
+                        <a href={waLink(item)} target="_blank" rel="noopener noreferrer" className="ui-btn ui-btn-sm ui-btn-icon" aria-label={`Kirim WhatsApp ke ${item.customer_name}`} title="Kirim WhatsApp"><SiWhatsapp size={14} /></a>
+                      )}
+                      <button onClick={() => setToDelete(item)} className="ui-btn ui-btn-sm ui-btn-icon ui-btn-ghost" aria-label={`Hapus ${item.queue_number}`} title="Hapus"><FiTrash2 size={14} /></button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
       </main>
+
+      {/* ── Modal Bagikan ── */}
+      {shareOpen && event && (
+        <Modal
+          title="Tampilan Antrian & QR"
+          description={event.name}
+          onClose={() => setShareOpen(false)}
+          footer={<button onClick={() => setShareOpen(false)} className="ui-btn">Tutup</button>}
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="ui-card p-4 hover:border-white/20 transition-all flex flex-col items-center text-center gap-2 group">
+                <FiExternalLink className="text-[var(--admin-accent)] group-hover:scale-110 transition-transform" size={20} />
+                <span className="text-sm font-semibold">Buka Layar TV</span>
+                <span className="text-xs text-[var(--admin-text-muted)]">Tampilan nomor antrian live</span>
+              </a>
+              <a href={qrPageUrl} target="_blank" rel="noopener noreferrer" className="ui-card p-4 hover:border-white/20 transition-all flex flex-col items-center text-center gap-2 group">
+                <FiGrid className="text-[var(--admin-accent)] group-hover:scale-110 transition-transform" size={20} />
+                <span className="text-sm font-semibold">Halaman QR Tamu</span>
+                <span className="text-xs text-[var(--admin-text-muted)]">Tampilkan di tablet untuk discan</span>
+              </a>
+            </div>
+            <div className="pt-2 border-t border-[var(--admin-border)] flex items-center justify-between gap-3">
+              <span className="text-xs text-[var(--admin-text-muted)] truncate">{guestUrl}</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(guestUrl);
+                    toast.success('Link antrean disalin!');
+                  } catch {
+                    toast.error('Gagal menyalin link');
+                  }
+                }}
+                className="ui-btn ui-btn-sm shrink-0"
+              >
+                <FiCopy size={13} /> Salin link
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* ── Modal Panggil Berikutnya (Pilih Nasib Tamu Aktif) ── */}
       {nextChoiceOpen && active && (

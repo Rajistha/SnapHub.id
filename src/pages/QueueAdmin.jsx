@@ -575,106 +575,99 @@ const QueueAdmin = () => {
                       })()}
                     </div>
 
-                    {/* Print Tambahan & Opsi Voucher */}
-                    <div className="rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-2.5 sm:p-3 flex items-center justify-between gap-2 overflow-x-auto">
-                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                        <span className="text-[11px] sm:text-xs font-semibold text-[var(--admin-text-muted)] whitespace-nowrap">Print tambahan</span>
-                        <div className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-bg)] p-0.5">
+                    {/* Voucher + print */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {!percentMode && (
+                      <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--admin-border)] p-1" role="group" aria-label="Voucher">
+                        {[{ v: false, label: 'Pakai voucher' }, { v: true, label: 'Tanpa voucher' }].map((o) => (
                           <button
+                            key={o.label}
                             type="button"
-                            onClick={() => changePrints(active, -1)}
-                            disabled={(active.prints || 0) <= 0}
-                            className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
-                            aria-label="Kurangi cetak"
+                            onClick={() => setNoVoucher(active, o.v)}
+                            aria-pressed={!!active.no_voucher === o.v}
+                            className={`rounded-lg min-h-10 px-2 text-sm font-semibold transition-colors ${
+                              !!active.no_voucher === o.v
+                                ? 'bg-[var(--admin-accent-bg)] text-[var(--admin-accent)] border border-[var(--admin-accent)]/30'
+                                : 'text-[var(--admin-text-muted)] hover:bg-[var(--admin-hover-bg)] border border-transparent'
+                            }`}
                           >
-                            –
+                            {o.label}
                           </button>
-                          <span className="w-6 sm:w-8 text-center font-mono font-bold num text-xs sm:text-sm">{active.prints || 0}</span>
-                          <button
-                            type="button"
-                            onClick={() => changePrints(active, 1)}
-                            disabled={(active.prints || 0) >= 50}
-                            className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
-                            aria-label="Tambah cetak"
-                          >
-                            +
-                          </button>
+                        ))}
+                      </div>
+                      )}
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-[var(--admin-border)] pl-3 pr-1 py-1">
+                        <span className="text-sm text-[var(--admin-text-muted)]">Print tambahan</span>
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => changePrints(active, -1)} disabled={!active.prints} className="ui-btn ui-btn-icon min-h-10 min-w-10 text-lg" aria-label="Kurangi print">−</button>
+                          <span className="w-6 text-center text-base font-semibold num" aria-live="polite">{active.prints || 0}</span>
+                          <button type="button" onClick={() => changePrints(active, 1)} className="ui-btn ui-btn-icon min-h-10 min-w-10 text-lg" aria-label="Tambah print">+</button>
                         </div>
                       </div>
-
-                      {!percentMode && (
-                        <label className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs cursor-pointer select-none shrink-0 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={!!active.no_voucher}
-                            onChange={(e) => setNoVoucher(active, e.target.checked)}
-                            className="rounded border-[var(--admin-border)] w-3.5 h-3.5 accent-[#D90429]"
-                          />
-                          <span>Tanpa voucher (+Rp 5.000)</span>
-                        </label>
-                      )}
                     </div>
 
-                    {/* Tombol Aksi Tamu Aktif */}
-                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2 pt-1">
-                      {active.status !== 'serving' ? (
-                        <button onClick={() => start(active)} disabled={busy} className="ui-btn ui-btn-primary px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                          <FiCamera size={14} className="shrink-0" /> <span>Mulai Foto</span>
-                        </button>
-                      ) : (
-                        <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-primary px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                          <FiCheck size={14} className="shrink-0" /> <span>Selesai</span>
-                        </button>
-                      )}
-                      <button onClick={() => recall(active)} disabled={busy} className="ui-btn px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                        <span>Panggil Ulang</span>
+                    {/* Aksi */}
+                    {active.status === 'serving' ? (
+                      <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ok ui-btn-lg w-full">
+                        <FiCheck size={18} /> Selesai
                       </button>
-                      <button onClick={() => skip(active)} disabled={busy} className="ui-btn px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                        <FiSkipForward size={14} className="shrink-0" /> <span>Lewati</span>
+                    ) : (
+                      <button onClick={() => start(active)} disabled={busy} className="ui-btn ui-btn-ok ui-btn-lg w-full">
+                        <FiCamera size={18} /> Mulai foto
                       </button>
+                    )}
+                    <div className={`grid gap-2 ${active.status === 'serving' ? 'grid-cols-1' : 'grid-cols-2'}`}>
                       {active.status !== 'serving' && (
-                        <button onClick={() => complete(active)} disabled={busy} className="ui-btn ui-btn-ghost text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-1.5 sm:px-3 py-2 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap">
-                          <FiCheck size={14} className="shrink-0" /> <span>Selesai</span>
-                        </button>
+                        <button onClick={() => recall(active)} disabled={busy} className="ui-btn min-h-11"><FiVolume2 size={15} /> Panggil lagi</button>
                       )}
+                      <button onClick={() => skip(active)} disabled={busy} className="ui-btn min-h-11"><FiSkipForward size={15} /> Lewati</button>
                     </div>
+                    {active.status !== 'serving' && (
+                      <button onClick={() => complete(active)} disabled={busy} className="text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] underline underline-offset-2 mx-auto py-1">
+                        Langsung tandai selesai
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <div className="py-8 text-center">
+                  <div className="py-8">
                     <p className="font-medium">Belum ada tamu yang dipanggil</p>
-                    <p className="text-xs text-[var(--admin-text-muted)] mt-1">
-                      Tekan tombol di bawah untuk memanggil antrian berikutnya.
-                    </p>
+
                   </div>
                 )}
               </section>
 
-              {/* Card: Tombol Panggil Berikutnya */}
-              <section className="ui-card p-4 sm:p-6 lg:col-span-2 flex flex-col justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-[var(--admin-text-muted)]">Aksi Cepat</h2>
-                  <p className="text-xs text-[var(--admin-text-muted)] mt-1">
-                    {waiting.length} tamu sedang menunggu giliran.
-                  </p>
+              {/* Berikutnya */}
+              <section className="ui-card p-4 sm:p-6 lg:col-span-2 flex flex-col">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h2 className="text-sm font-semibold text-[var(--admin-text-muted)]">Berikutnya</h2>
+                  <span className="text-sm text-[var(--admin-text-muted)] num">{waiting.length} menunggu</span>
                 </div>
 
-                <button
-                  onClick={requestCallNext}
-                  disabled={busy || waiting.length === 0}
-                  className="ui-btn ui-btn-primary ui-btn-lg w-full py-4 text-base font-bold shadow-lg shadow-[#D90429]/25 flex items-center justify-center gap-2"
-                >
-                  <FiPlay size={18} /> Panggil Berikutnya {waiting.length > 0 ? `(${waiting[0].queue_number})` : ''}
-                </button>
+                {waiting[0] ? (
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div className="min-w-0">
+                      {waiting[0].customer_name && waiting[0].customer_name !== 'Tamu' ? (
+                        <p className="font-medium truncate">{waiting[0].customer_name}</p>
+                      ) : (
+                        <p className="font-semibold text-sm text-[var(--admin-text-main)]">Antrian berikutnya</p>
+                      )}
+                      <p className="text-sm text-[var(--admin-text-muted)] font-mono">{waiting[0].customer_phone || ''}</p>
+                    </div>
+                    <p className="text-3xl font-bold font-mono num">{waiting[0].queue_number}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--admin-text-muted)] mb-4">Tidak ada tamu yang menunggu.</p>
+                )}
 
-                <label className="flex items-center gap-2 text-xs text-[var(--admin-text-muted)] select-none">
-                  <input
-                    type="checkbox"
-                    checked={autoSession}
-                    onChange={(e) => setAutoSession(e.target.checked)}
-                    className="rounded border-[var(--admin-border)]"
-                  />
-                  <span>Otomatis catat sesi foto saat selesai</span>
-                </label>
+                <div className="mt-auto space-y-3">
+                  <button type="button" onClick={requestCallNext} disabled={busy || waiting.length === 0} className="ui-btn ui-btn-primary ui-btn-lg w-full min-h-12">
+                    <FiPlay size={16} /> Panggil berikutnya
+                  </button>
+                  <label className="flex items-start gap-2.5 text-sm text-[var(--admin-text-muted)] cursor-pointer">
+                    <input type="checkbox" checked={autoSession} onChange={(e) => setAutoSession(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[var(--admin-primary)]" />
+                    <span>Catat +1 sesi foto otomatis saat tamu selesai</span>
+                  </label>
+                </div>
               </section>
             </div>
 
@@ -700,7 +693,7 @@ const QueueAdmin = () => {
                     <FiRefreshCw size={15} className={loadingQueues ? 'animate-spin' : ''} />
                   </button>
                   <button onClick={() => setAddOpen(true)} className="ui-btn ui-btn-primary shrink-0 gap-1.5" aria-label="Tambah manual">
-                    <FiPlus size={14} /> <span>Tambah Manual</span>
+                    <FiPlus size={15} /> <span className="hidden sm:inline">Tambah</span>
                   </button>
                 </div>
               </div>
