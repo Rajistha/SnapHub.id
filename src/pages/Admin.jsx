@@ -19,6 +19,10 @@ import AdminPricelist from '../components/AdminPricelist';
 import AdminLinks from '../components/AdminLinks';
 import AdminUsage from '../components/AdminUsage';
 
+const isLocalhost = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+);
+
 const Admin = () => {
   const [session, setSession] = useState(null);
   const [email, setEmail] = useState('');
@@ -198,9 +202,6 @@ const Admin = () => {
     );
   }
 
-  const isLocalhost = typeof window !== 'undefined' && (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  );
 
   // Admin Dashboard Layout - Dikelompokkan per Section Collapsible
   // Aturan: Semua penamaan judul section dan item tepat 1 kata dalam bahasa Inggris

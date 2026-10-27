@@ -69,31 +69,40 @@ const LinkCard = ({ item }) => {
       target={newTab ? '_blank' : '_self'}
       rel="noopener noreferrer"
       onClick={() => trackClick(item.id)}
-      className={`group flex items-center gap-3.5 rounded-2xl p-3.5 min-h-[64px] border transition-all duration-200 active:scale-[0.99] ${
+      className={`group relative flex items-center gap-3.5 rounded-2xl p-3.5 min-h-[64px] border transition-all duration-200 active:scale-[0.99] overflow-hidden ${
         featured
-          ? 'bg-white text-zinc-950 border-white hover:bg-zinc-200'
+          ? 'bg-zinc-900/90 hover:bg-zinc-800/90 border-white/25 hover:border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.6)] ring-1 ring-white/10 backdrop-blur-md'
           : 'bg-gradient-to-b from-[#1b1b1f] to-[#121214] border-white/10 hover:border-white/20 hover:from-[#222227] hover:to-[#17171a] shadow-[0_8px_30px_rgba(0,0,0,0.35)]'
       }`}
     >
-      <span className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center overflow-hidden ${featured ? 'bg-zinc-950/5' : 'bg-white/[0.06]'}`}>
+      {/* Highlighted Specular Top Reflection (Monochromatic White Glass) */}
+      {featured && (
+        <div className="absolute top-0 inset-x-8 h-[1px] bg-gradient-to-r from-transparent via-white/50 to-transparent pointer-events-none" />
+      )}
+
+      <span className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center overflow-hidden ${featured ? 'bg-white/10 border border-white/10' : 'bg-white/[0.06]'}`}>
         {item.logoUrl ? (
           <img src={item.logoUrl} alt="" loading="lazy" decoding="async" width="44" height="44" className="w-full h-full object-contain p-1.5" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : (
-          <Icon size={19} aria-hidden="true" className={featured ? 'text-zinc-800' : 'text-zinc-300'} />
+          <Icon size={19} aria-hidden="true" className={featured ? 'text-white' : 'text-zinc-300'} />
         )}
       </span>
 
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="font-semibold text-[15px] leading-snug truncate">{item.title}</span>
+          <span className={`font-semibold text-[15px] leading-snug truncate ${featured ? 'text-white' : 'text-zinc-100'}`}>{item.title}</span>
           {item.badge && (
-            <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold ${featured ? 'bg-zinc-950 text-white' : 'bg-white/10 text-zinc-200'}`}>{item.badge}</span>
+            <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold ${featured ? 'bg-white/15 text-white border border-white/20' : 'bg-white/10 text-zinc-200'}`}>{item.badge}</span>
           )}
         </span>
-        {item.subtitle && <span className={`block text-sm leading-snug mt-0.5 truncate ${featured ? 'text-zinc-600' : 'text-zinc-400'}`}>{item.subtitle}</span>}
+        {item.subtitle && <span className={`block text-sm leading-snug mt-0.5 truncate ${featured ? 'text-zinc-300' : 'text-zinc-400'}`}>{item.subtitle}</span>}
       </span>
 
-      {external ? <FiExternalLink size={16} aria-hidden="true" className="shrink-0 opacity-60" /> : <FiArrowRight size={16} aria-hidden="true" className="shrink-0 opacity-60" />}
+      {external ? (
+        <FiExternalLink size={16} aria-hidden="true" className={`shrink-0 ${featured ? 'text-white/80 group-hover:text-white' : 'opacity-60'}`} />
+      ) : (
+        <FiArrowRight size={16} aria-hidden="true" className={`shrink-0 transition-transform group-hover:translate-x-0.5 ${featured ? 'text-white/80 group-hover:text-white' : 'opacity-60'}`} />
+      )}
       {newTab && <span className="sr-only">(membuka tab baru)</span>}
     </a>
   );

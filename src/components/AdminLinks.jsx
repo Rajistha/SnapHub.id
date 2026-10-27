@@ -627,7 +627,7 @@ const AdminLinks = () => {
             </fieldset>
 
             <div className="border-t border-[var(--admin-border)] pt-3">
-              <Toggle checked={form.isHighlighted} onChange={(v) => setForm({ ...form, isHighlighted: v })} label="Link unggulan" hint="Tampil sebagai kartu putih yang menonjol." />
+              <Toggle checked={form.isHighlighted} onChange={(v) => setForm({ ...form, isHighlighted: v })} label="Link unggulan" hint="Tampil dengan efek glow mewah & pantulan cahaya (dark glass specular highlight)." />
               <Toggle checked={form.openNewTab} onChange={(v) => setForm({ ...form, openNewTab: v })} label="Buka di tab baru" />
               <Toggle checked={form.isActive} onChange={(v) => setForm({ ...form, isActive: v })} label="Tampilkan di halaman publik" />
             </div>
