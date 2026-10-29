@@ -73,7 +73,7 @@ const Pricelist = () => {
   const pkg = packages.find((p) => p.id === activeTab);
 
   return (
-    <section id="pricelist" className="section-pad bg-[#0B0B0B] relative overflow-hidden">
+    <section id="pricelist" className="scroll-mt-20 md:scroll-mt-24 section-pad bg-[#0B0B0B] relative overflow-hidden">
       {/* Background glow */}
       <div
         className="absolute inset-0 pointer-events-none"

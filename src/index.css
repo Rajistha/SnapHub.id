@@ -280,11 +280,13 @@
   /* ── Section Layout ─────────────────── */
   .section-pad {
     padding: 5rem 0;
+    scroll-margin-top: 76px;
   }
 
   @media (min-width: 768px) {
     .section-pad {
       padding: 6.5rem 0;
+      scroll-margin-top: 84px;
     }
   }
 

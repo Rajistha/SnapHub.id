@@ -101,10 +101,10 @@ function ScrollToHash() {
     const tryScroll = (attempt = 0) => {
       const el = document.getElementById(id);
       if (el) {
-        setTimeout(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 80);
-      } else if (attempt < 10) {
+        const navOffset = window.innerWidth >= 768 ? 76 : 68;
+        const targetTop = el.getBoundingClientRect().top + window.pageYOffset - navOffset;
+        window.scrollTo({ top: targetTop, behavior: 'smooth' });
+      } else if (attempt < 15) {
         setTimeout(() => tryScroll(attempt + 1), 100);
       }
     };
