@@ -11,12 +11,24 @@ import { DEFAULT_PACKAGES, DEFAULT_TNC, mergePackages, formatRupiah, startFrom }
 const inputCls =
   'w-full bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] rounded-lg px-3 py-2 text-sm text-[var(--admin-text-main)] focus:outline-none focus:border-[var(--admin-accent)]';
 
+const formatNumberWithDots = (val) => {
+  if (val === '' || val === null || val === undefined) return '';
+  const clean = String(val).replace(/\D/g, '');
+  if (!clean) return '';
+  return new Intl.NumberFormat('id-ID').format(clean);
+};
+
+const parseRawNumber = (val) => {
+  if (val === '' || val === null || val === undefined) return 0;
+  return parseInt(String(val).replace(/\D/g, ''), 10) || 0;
+};
+
 const toEditable = (packages) =>
   packages.map(({ id, label, tagline, prices }) => ({
     id,
     label,
     tagline,
-    prices: prices.map((p) => ({ label: p.label, sub: p.sub || '', price: p.price })),
+    prices: prices.map((p) => ({ label: p.label, sub: p.sub || '', price: p.price != null && p.price !== '' ? formatNumberWithDots(p.price) : '' })),
   }));
 
 const AdminPricelist = () => {
@@ -64,7 +76,7 @@ const AdminPricelist = () => {
   const updateRow = (index, patch) =>
     updatePkg({ prices: pkg.prices.map((r, i) => (i === index ? { ...r, ...patch } : r)) });
 
-  const addRow = () => updatePkg({ prices: [...pkg.prices, { label: '', sub: '', price: 0 }] });
+  const addRow = () => updatePkg({ prices: [...pkg.prices, { label: '', sub: '', price: '' }] });
 
   const removeRow = (index) => updatePkg({ prices: pkg.prices.filter((_, i) => i !== index) });
 
@@ -174,7 +186,8 @@ const AdminPricelist = () => {
       prices: p.prices
         .filter((r) => r.label.trim())
         .map((r) => {
-          const row = { label: r.label.trim(), price: Math.max(0, Number(r.price) || 0) };
+          const rawPrice = typeof r.price === 'number' ? r.price : parseRawNumber(r.price);
+          const row = { label: r.label.trim(), price: Math.max(0, rawPrice) };
           if (r.sub.trim()) row.sub = r.sub.trim();
           return row;
         }),
@@ -375,13 +388,17 @@ const AdminPricelist = () => {
               <div className="flex items-center gap-2 bg-[var(--admin-hover-bg)] border border-[var(--admin-border)] rounded-lg px-3 focus-within:border-[var(--admin-accent)]">
                 <span className="text-xs text-[var(--admin-text-muted)]">Rp</span>
                 <input
-                  type="number"
+                  type="text"
+                  placeholder="0"
                   inputMode="numeric"
-                  min="0"
-                  step="1000"
-                  value={row.price}
-                  onChange={(e) => updateRow(i, { price: e.target.value })}
-                  className="flex-1 min-w-0 bg-transparent py-2 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+
+
+                  value={row.price != null && row.price !== '' ? formatNumberWithDots(row.price) : ''}
+                  onChange={(e) => {
+                    const rawValue = e.target.value.replace(/\D/g, '');
+                    updateRow(i, { price: rawValue ? new Intl.NumberFormat('id-ID').format(rawValue) : '' });
+                  }}
+                  className="flex-1 min-w-0 bg-transparent py-2 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums"
                 />
               </div>
             </div>

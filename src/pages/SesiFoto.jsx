@@ -59,6 +59,11 @@ const formatThousand = (val) => {
   return new Intl.NumberFormat('id-ID').format(num);
 };
 
+const handleThousandInput = (val, setter) => {
+  const raw = String(val).replace(/\D/g, '');
+  setter(raw ? new Intl.NumberFormat('id-ID').format(raw) : '');
+};
+
 const parseThousand = (val) => {
   if (val == null || val === '') return 0;
   return parseInt(String(val).replace(/\./g, '').replace(/\D/g, ''), 10) || 0;
@@ -187,12 +192,12 @@ const SesiFoto = () => {
   const openEventPriceModal = () => {
     if (!selectedEvent) return;
     const current = getEventPricing(selectedEvent);
-    setDraftVoucherPrice(current.voucherPrice ?? 30000);
-    setDraftNoVoucherPrice(current.noVoucherPrice ?? 35000);
-    setDraftPrintPrice(current.printPrice ?? 10000);
-    setDraftSharePerVoucher(selectedEvent.share_per_voucher != null && selectedEvent.share_per_voucher !== 0 ? selectedEvent.share_per_voucher : 5000);
+    setDraftVoucherPrice(formatThousand(current.voucherPrice ?? 30000));
+    setDraftNoVoucherPrice(formatThousand(current.noVoucherPrice ?? 35000));
+    setDraftPrintPrice(formatThousand(current.printPrice ?? 10000));
+    setDraftSharePerVoucher(formatThousand(selectedEvent.share_per_voucher != null && selectedEvent.share_per_voucher !== 0 ? selectedEvent.share_per_voucher : 5000));
     setDraftMode(selectedEvent.pricing_mode === 'percent' ? 'percent' : 'voucher');
-    setDraftSessionPrice(selectedEvent.session_price || 45000);
+    setDraftSessionPrice(formatThousand(selectedEvent.session_price || 45000));
     setDraftSharePercent(selectedEvent.pricing_mode === 'percent' && selectedEvent.share_percent != null ? String(Number(selectedEvent.share_percent)) : '15');
     setIsEventPriceModalOpen(true);
   };
@@ -1252,7 +1257,7 @@ const SesiFoto = () => {
                     type="text"
                     inputMode="numeric"
                     value={formatThousand(draftVoucherPrice)}
-                    onChange={(e) => setDraftVoucherPrice(parseThousand(e.target.value))}
+                    onChange={(e) => handleThousandInput(e.target.value, setDraftVoucherPrice)}
                     className="w-full min-w-0 bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
                     placeholder="30.000"
                     required
@@ -1274,7 +1279,7 @@ const SesiFoto = () => {
                     type="text"
                     inputMode="numeric"
                     value={formatThousand(draftNoVoucherPrice)}
-                    onChange={(e) => setDraftNoVoucherPrice(parseThousand(e.target.value))}
+                    onChange={(e) => handleThousandInput(e.target.value, setDraftNoVoucherPrice)}
                     className="w-full min-w-0 bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
                     placeholder="35.000"
                     required
@@ -1295,7 +1300,7 @@ const SesiFoto = () => {
                     type="text"
                     inputMode="numeric"
                     value={formatThousand(draftSessionPrice)}
-                    onChange={(e) => setDraftSessionPrice(parseThousand(e.target.value))}
+                    onChange={(e) => handleThousandInput(e.target.value, setDraftSessionPrice)}
                     className="w-full min-w-0 bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
                     placeholder="30.000"
                     required
@@ -1316,7 +1321,7 @@ const SesiFoto = () => {
                     type="text"
                     inputMode="numeric"
                     value={formatThousand(draftPrintPrice)}
-                    onChange={(e) => setDraftPrintPrice(parseThousand(e.target.value))}
+                    onChange={(e) => handleThousandInput(e.target.value, setDraftPrintPrice)}
                     className="w-full min-w-0 bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
                     placeholder="10.000"
                     required
@@ -1339,7 +1344,7 @@ const SesiFoto = () => {
                     type="text"
                     inputMode="numeric"
                     value={formatThousand(draftSharePerVoucher)}
-                    onChange={(e) => setDraftSharePerVoucher(parseThousand(e.target.value))}
+                    onChange={(e) => handleThousandInput(e.target.value, setDraftSharePerVoucher)}
                     className="w-full min-w-0 bg-transparent py-2.5 text-sm text-[var(--admin-text-main)] focus:outline-none tabular-nums font-semibold"
                     placeholder="5.000"
                   />
