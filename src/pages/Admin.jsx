@@ -4,7 +4,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   FiLogOut, FiArrowLeft, FiPieChart, FiCalendar, FiDollarSign, 
   FiMenu, FiX, FiChevronDown, FiSun, FiMoon, FiImage, FiStar, 
-  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget, FiUsers, FiScissors, FiServer
+  FiBriefcase, FiCamera, FiTag, FiLink, FiCreditCard, FiBarChart2, FiTarget, FiUsers, FiScissors, FiServer,
+  FiFileText
 } from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
@@ -18,6 +19,7 @@ import AdminLogos from '../components/AdminLogos';
 import AdminPricelist from '../components/AdminPricelist';
 import AdminLinks from '../components/AdminLinks';
 import AdminUsage from '../components/AdminUsage';
+import AdminInvoice from '../components/AdminInvoice';
 
 const isLocalhost = typeof window !== 'undefined' && (
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -73,10 +75,12 @@ const Admin = () => {
   else if (pathParts[1] === 'operations' || pathParts[1] === 'operational') activeTab = 'finance_operational';
   else if (pathParts[1] === 'recap') activeTab = 'finance_recap';
   else if (pathParts[1] === 'target') activeTab = 'finance_target';
+  else if (pathParts[1] === 'invoice' || pathParts[1] === 'invoices' || pathParts[1] === 'quotation' || pathParts[1] === 'quotations') activeTab = 'finance_invoice';
   else if (pathParts[1] === 'finance') {
     if (pathParts[2] === 'operational' || pathParts[2] === 'operations') activeTab = 'finance_operational';
     else if (pathParts[2] === 'recap') activeTab = 'finance_recap';
     else if (pathParts[2] === 'target') activeTab = 'finance_target';
+    else if (pathParts[2] === 'invoice' || pathParts[2] === 'invoices' || pathParts[2] === 'quotation' || pathParts[2] === 'quotations') activeTab = 'finance_invoice';
     else activeTab = 'finance_events';
   } else if (pathParts[1]) {
     activeTab = pathParts[1];
@@ -94,6 +98,7 @@ const Admin = () => {
     else if (tabId === 'finance_operational') navigate(`${base}/operations`);
     else if (tabId === 'finance_recap') navigate(`${base}/recap`);
     else if (tabId === 'finance_target') navigate(`${base}/target`);
+    else if (tabId === 'finance_invoice') navigate(`${base}/invoice`);
     else navigate(`${base}/${tabId}`);
   };
 
@@ -221,6 +226,7 @@ const Admin = () => {
       title: 'Finance',
       items: [
         { id: 'schedule', label: 'Schedule', icon: <FiCalendar size={18} /> },
+        { id: 'finance_invoice', label: 'Invoices', icon: <FiFileText size={18} /> },
         { id: 'finance_events', label: 'Events', icon: <FiDollarSign size={18} /> },
         { id: 'finance_operational', label: 'Operations', icon: <FiCreditCard size={18} /> },
         { id: 'finance_recap', label: 'Recap', icon: <FiBarChart2 size={18} /> },
@@ -522,6 +528,7 @@ const Admin = () => {
             {activeTab === 'finance_operational' && <AdminFinance activeSubTab="operational" />}
             {activeTab === 'finance_recap' && <AdminFinance activeSubTab="recap" />}
             {activeTab === 'finance_target' && <AdminFinance activeSubTab="target" />}
+            {activeTab === 'finance_invoice' && <AdminInvoice />}
 
           </div>
         </div>
