@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { 
   FiPlus, FiTrash2, FiSave, FiRotateCcw, 
-  FiUploadCloud, FiExternalLink, FiFileText 
+  FiUploadCloud, FiExternalLink, FiFileText, FiCheck 
 } from 'react-icons/fi';
 import { removeUnusedFiles } from '../lib/storageCleanup';
 import { DEFAULT_PACKAGES, DEFAULT_TNC, mergePackages, formatRupiah, startFrom } from '../lib/pricelistDefaults';
@@ -24,11 +24,18 @@ const parseRawNumber = (val) => {
 };
 
 const toEditable = (packages) =>
-  packages.map(({ id, label, tagline, prices }) => ({
+  packages.map(({ id, label, badge, tagline, features, extraNote, prices }) => ({
     id,
     label,
-    tagline,
-    prices: prices.map((p) => ({ label: p.label, sub: p.sub || '', price: p.price != null && p.price !== '' ? formatNumberWithDots(p.price) : '' })),
+    badge: badge || '',
+    tagline: tagline || '',
+    features: Array.isArray(features) ? [...features] : [],
+    extraNote: extraNote || '',
+    prices: prices.map((p) => ({
+      label: p.label,
+      sub: p.sub || '',
+      price: p.price != null && p.price !== '' ? formatNumberWithDots(p.price) : '',
+    })),
   }));
 
 const AdminPricelist = () => {
@@ -66,7 +73,7 @@ const AdminPricelist = () => {
     load();
   }, []);
 
-  const pkg = packages.find((p) => p.id === activeId);
+  const pkg = packages.find((p) => p.id === activeId) || packages[0];
 
   const updatePkg = (patch) => {
     setPackages((prev) => prev.map((p) => (p.id === activeId ? { ...p, ...patch } : p)));
@@ -82,8 +89,39 @@ const AdminPricelist = () => {
 
   const resetPkg = () => {
     const def = DEFAULT_PACKAGES.find((p) => p.id === activeId);
-    updatePkg(toEditable([def])[0]);
-    toast('Dikembalikan ke harga bawaan, klik Simpan untuk menerapkan');
+    if (def) {
+      updatePkg(toEditable([def])[0]);
+      toast('Dikembalikan ke pengaturan bawaan, klik Simpan untuk menerapkan');
+    }
+  };
+
+  const updateFeature = (index, text) => {
+    updatePkg({
+      features: (pkg.features || []).map((f, i) => (i === index ? text : f)),
+    });
+  };
+
+  const addFeature = () => {
+    updatePkg({
+      features: [...(pkg.features || []), ''],
+    });
+  };
+
+  const removeFeature = (index) => {
+    updatePkg({
+      features: (pkg.features || []).filter((_, i) => i !== index),
+    });
+  };
+
+  const resetFeatures = () => {
+    const def = DEFAULT_PACKAGES.find((p) => p.id === activeId);
+    if (def) {
+      updatePkg({
+        features: [...(def.features || [])],
+        extraNote: def.extraNote || '',
+      });
+      toast('Fitur dikembalikan ke bawaan, klik Simpan untuk menerapkan');
+    }
   };
 
   const updateTnc = (index, text) => {
@@ -120,8 +158,6 @@ const AdminPricelist = () => {
     try {
       const fileExt = file.name.split('.').pop();
       const isPdf = fileExt.toLowerCase() === 'pdf';
-      // PDF memakai nama tetap agar bisa diakses lewat link rapi snaphub.my.id/pricelist.pdf
-      // (rewrite di vercel.json). Format lain tetap memakai nama unik + URL Supabase.
       const fileName = isPdf ? 'pricelist.pdf' : `pricelist_${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
@@ -146,7 +182,6 @@ const AdminPricelist = () => {
     }
   };
 
-  // Simpan sebagian isi setting 'pricelist' tanpa menimpa bagian lain yang sudah tersimpan.
   const saveSettings = async (patch) => {
     const { data, error: readError } = await supabase
       .from('site_settings')
@@ -166,7 +201,6 @@ const AdminPricelist = () => {
       const savedUrl = pdfUrl.trim() || '/PriceGuideSnapHub.id.pdf';
       await saveSettings({ pdfUrl: savedUrl });
       setPdfDirty(false);
-      // Hapus file lama yang tidak lagi dipakai (bucket pricelist + sisa upload lama di client-logos)
       await removeUnusedFiles('pricelist', { inUse: savedUrl });
       await removeUnusedFiles('client-logos', { prefix: 'pricelist_' });
       toast.success('File unduhan pricelist berhasil disimpan');
@@ -179,19 +213,25 @@ const AdminPricelist = () => {
   };
 
   const handleSave = async () => {
-    const cleaned = packages.map((p) => ({
-      id: p.id,
-      label: p.label.trim(),
-      tagline: p.tagline.trim(),
-      prices: p.prices
-        .filter((r) => r.label.trim())
-        .map((r) => {
-          const rawPrice = typeof r.price === 'number' ? r.price : parseRawNumber(r.price);
-          const row = { label: r.label.trim(), price: Math.max(0, rawPrice) };
-          if (r.sub.trim()) row.sub = r.sub.trim();
-          return row;
-        }),
-    }));
+    const cleaned = packages.map((p) => {
+      const cleanedFeatures = (p.features || []).map((f) => f.trim()).filter(Boolean);
+      return {
+        id: p.id,
+        label: p.label.trim(),
+        badge: p.badge ? p.badge.trim() : null,
+        tagline: p.tagline.trim(),
+        features: cleanedFeatures,
+        extraNote: p.extraNote ? p.extraNote.trim() : '',
+        prices: p.prices
+          .filter((r) => r.label.trim())
+          .map((r) => {
+            const rawPrice = typeof r.price === 'number' ? r.price : parseRawNumber(r.price);
+            const row = { label: r.label.trim(), price: Math.max(0, rawPrice) };
+            if (r.sub.trim()) row.sub = r.sub.trim();
+            return row;
+          }),
+      };
+    });
     if (cleaned.some((p) => !p.label || p.prices.length === 0)) {
       toast.error('Nama paket dan minimal satu harga wajib diisi');
       return;
@@ -218,22 +258,36 @@ const AdminPricelist = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <div className="w-8 h-8 border-4 border-[#D90429] border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-4 border-[var(--admin-accent)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl space-y-5">
-      {/* ── File Download Pricelist ── */}
-      <div className="border border-[var(--admin-border)] rounded-2xl p-5 space-y-4 bg-[var(--admin-card-bg)]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-main)] flex items-center gap-2">
-              <FiFileText className="text-[#D90429]" size={16} /> File Download Pricelist (PDF / Dokumen)
-            </h4>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-[var(--admin-text-main)]">Kelola Pricelist</h3>
+        <p className="text-xs text-[var(--admin-text-muted)] mt-1">
+          Ubah nama paket, badge, fitur "Sudah Termasuk", catatan waktu tambahan, daftar harga, dan syarat ketentuan yang tampil di halaman depan.
+        </p>
+      </div>
 
+      {/* PDF Download file setting */}
+      <div className="border border-[var(--admin-border)] rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[var(--admin-accent-bg)] border border-[var(--admin-accent)]/30 flex items-center justify-center text-[var(--admin-accent)]">
+              <FiFileText size={16} />
+            </div>
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-main)]">
+                File Unduhan Pricelist (PDF / Brosur)
+              </h4>
+              <p className="text-xs text-[var(--admin-text-muted)] mt-0.5">
+                File ini yang terunduh saat pengunjung mengklik tombol "Download Price Guide" di halaman depan.
+              </p>
+            </div>
           </div>
           {pdfUrl && (
             <a
@@ -303,7 +357,6 @@ const AdminPricelist = () => {
               </button>
             )}
           </div>
-
         </div>
 
         <div className="flex items-center justify-end gap-3">
@@ -336,6 +389,7 @@ const AdminPricelist = () => {
         ))}
       </div>
 
+      {/* Card 1: Informasi Paket */}
       <div className="border border-[var(--admin-border)] rounded-2xl p-5 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -346,10 +400,73 @@ const AdminPricelist = () => {
             <label className="block text-xs text-[var(--admin-text-muted)] mb-2">Tagline</label>
             <input className={inputCls} value={pkg.tagline} onChange={(e) => updatePkg({ tagline: e.target.value })} />
           </div>
+          <div>
+            <label className="block text-xs text-[var(--admin-text-muted)] mb-2">Badge (opsional)</label>
+            <input
+              className={inputCls}
+              placeholder="mis. 🔥 Paling Populer"
+              value={pkg.badge || ''}
+              onChange={(e) => updatePkg({ badge: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[var(--admin-text-muted)] mb-2">Catatan Tambahan (opsional)</label>
+            <input
+              className={inputCls}
+              placeholder="mis. Tambah waktu (tanpa print): Rp 500.000 / jam"
+              value={pkg.extraNote || ''}
+              onChange={(e) => updatePkg({ extraNote: e.target.value })}
+            />
+          </div>
         </div>
-
       </div>
 
+      {/* Card 2: Fitur Paket (Sudah Termasuk) */}
+      <div className="border border-[var(--admin-border)] rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-muted)]">
+            Sudah Termasuk ({(pkg.features || []).length})
+          </h4>
+          <button
+            onClick={resetFeatures}
+            className="flex items-center gap-1.5 text-xs text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] transition-colors cursor-pointer"
+          >
+            <FiRotateCcw size={12} /> Kembalikan bawaan
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {(pkg.features || []).map((feat, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-[var(--admin-accent-bg)] border border-[var(--admin-accent)]/30 flex items-center justify-center shrink-0">
+                <FiCheck size={10} className="text-[var(--admin-accent)]" />
+              </div>
+              <input
+                className={inputCls}
+                placeholder="Tulis poin fitur (mis. Free transport Kota Malang)..."
+                value={feat}
+                onChange={(e) => updateFeature(i, e.target.value)}
+              />
+              <button
+                onClick={() => removeFeature(i)}
+                className="shrink-0 p-2 rounded-lg text-[var(--admin-text-muted)] hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                title="Hapus poin fitur"
+              >
+                <FiTrash2 size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={addFeature}
+          className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-[var(--admin-border)] text-sm text-[var(--admin-text-muted)] hover:text-[var(--admin-text-main)] hover:bg-[var(--admin-hover-bg)] transition-colors cursor-pointer"
+        >
+          <FiPlus size={14} /> Tambah poin fitur
+        </button>
+      </div>
+
+      {/* Card 3: Daftar Harga */}
       <div className="border border-[var(--admin-border)] rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-muted)]">
@@ -391,8 +508,6 @@ const AdminPricelist = () => {
                   type="text"
                   placeholder="0"
                   inputMode="numeric"
-
-
                   value={row.price != null && row.price !== '' ? formatNumberWithDots(row.price) : ''}
                   onChange={(e) => {
                     const rawValue = e.target.value.replace(/\D/g, '');
@@ -413,6 +528,7 @@ const AdminPricelist = () => {
         </button>
       </div>
 
+      {/* Card 4: Syarat & Ketentuan */}
       <div className="border border-[var(--admin-border)] rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-muted)]">
@@ -465,7 +581,7 @@ const AdminPricelist = () => {
           disabled={saving || !dirty}
           className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
-          <FiSave size={14} /> {saving ? 'Menyimpan...' : 'Simpan Pricelist'}
+          <FiSave size={15} /> {saving ? 'Menyimpan...' : 'Simpan Pricelist'}
         </button>
       </div>
     </div>

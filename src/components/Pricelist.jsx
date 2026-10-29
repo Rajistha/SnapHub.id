@@ -188,11 +188,32 @@ const Pricelist = () => {
                   ))}
                 </ul>
                 {/* Additional time note */}
-                {pkg.id === 'limited' && (
+                {Boolean(pkg.extraNote) && (
                   <div className="mt-5 pt-4 border-t border-white/10">
                     <p className="text-[11px] text-gray-400 leading-relaxed">
-                      <span className="text-[#D90429] font-semibold">Tambah waktu</span>{' '}(tanpa print):{' '}
-                      <span className="text-white font-medium">Rp 500.000 / jam</span>
+                      {(() => {
+                        const note = pkg.extraNote;
+                        if (note.includes(':')) {
+                          const [labelPart, ...rest] = note.split(':');
+                          const valuePart = rest.join(':').trim();
+                          const hasTambahWaktu = labelPart.toLowerCase().startsWith('tambah waktu');
+                          return (
+                            <>
+                              {hasTambahWaktu ? (
+                                <>
+                                  <span className="text-[#D90429] font-semibold">Tambah waktu</span>
+                                  {labelPart.slice(12)}:{' '}
+                                </>
+                              ) : (
+                                <>{labelPart}: </>
+                              )}
+                              <span className="text-white font-medium">{valuePart}</span>
+                            </>
+                          );
+                        }
+                        return note;
+                      })()}
+
                     </p>
                   </div>
                 )}

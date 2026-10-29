@@ -6,6 +6,7 @@ export const DEFAULT_PACKAGES = [
     label: 'Soft File Only',
     badge: null,
     tagline: 'Kenangan digital tanpa batas',
+    extraNote: '',
     features: [
       'Free transport Kota Malang',
       'Camera + Lighting + Monitor 24"',
@@ -31,6 +32,7 @@ export const DEFAULT_PACKAGES = [
     label: 'Limited Print',
     badge: null,
     tagline: 'Cetak sesuai kebutuhan acara',
+    extraNote: 'Tambah waktu (tanpa print): Rp 500.000 / jam',
     features: [
       'Free transport Kota Malang',
       'Camera + Lighting + Monitor 24"',
@@ -59,6 +61,7 @@ export const DEFAULT_PACKAGES = [
     label: 'Unlimited Print',
     badge: '🔥 Paling Populer',
     tagline: 'Cetak sepuasnya tanpa batas',
+    extraNote: '',
     features: [
       'Free transport Kota Malang',
       'Camera + Lighting + Monitor 24"',
@@ -95,6 +98,9 @@ export const mergePackages = (saved) => {
     return {
       ...def,
       label: s.label || def.label,
+      badge: s.badge !== undefined ? s.badge : def.badge,
+      features: Array.isArray(s.features) && s.features.length > 0 ? s.features : def.features,
+      extraNote: s.extraNote !== undefined ? s.extraNote : (def.extraNote || ''),
       tagline: s.tagline ?? def.tagline,
       prices: Array.isArray(s.prices) && s.prices.length > 0 ? s.prices : def.prices,
     };
